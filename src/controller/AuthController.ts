@@ -2,8 +2,9 @@ import { Request, Response } from "express";
 import bcrypt from "bcryptjs"
 import { generateAccessToken, generateRefreshToken } from "../utils/generateJwt";
 import { prisma } from "../utils/db";
+import { asyncMiddleware } from "../middleware/asyncMiddleware";
 
-export const registerUser = async (req: Request, res: Response) => {
+export const registerUser = asyncMiddleware(async (req: Request, res: Response) => {
   try {
     // Validate input
     // const errors = validationResult(req);
@@ -46,8 +47,6 @@ export const registerUser = async (req: Request, res: Response) => {
         lastName,
         phoneNumber,
         role,
-        salt,
-        status: 'ACTIVE'
       },
       select: {
         id: true,
@@ -77,10 +76,10 @@ export const registerUser = async (req: Request, res: Response) => {
       error: error instanceof Error ? error.message : 'Unknown error' 
     });
   }
-};
+})
 
 // Login Controller
-export const loginUser = async (req: Request, res: Response) => {
+export const loginUser = asyncMiddleware(async (req: Request, res: Response) => {
   try {
     // Validate input
     // const errors = validationResult(req);
@@ -101,12 +100,6 @@ export const loginUser = async (req: Request, res: Response) => {
       });
     }
 
-    // Check account status
-    if (user.status !== 'ACTIVE') {
-      return res.status(403).json({ 
-        message: 'Account is not active' 
-      });
-    }
 
     // Verify password
     const isMatch = await bcrypt.compare(password, user.password);
@@ -156,10 +149,10 @@ export const loginUser = async (req: Request, res: Response) => {
       error: error instanceof Error ? error.message : 'Unknown error' 
     });
   }
-};
+})
 
 // Logout Controller
-export const logoutUser = async (req: Request, res: Response) => {
+export const logoutUser = asyncMiddleware(async (req: Request, res: Response) => {
   try {
     // If using refresh tokens, you might want to invalidate the token here
     // This would typically involve storing invalidated tokens in a blacklist or database
@@ -174,6 +167,8 @@ export const logoutUser = async (req: Request, res: Response) => {
       error: error instanceof Error ? error.message : 'Unknown error' 
     });
   }
-};
+});
+
+
 
 // Token Refresh Controller

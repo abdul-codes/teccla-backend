@@ -1,8 +1,64 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
 datasource db {
   provider = "postgresql"
   url      = env("DATABASE_URL")
 }
 
-generator client {
-  provider = "prisma-client-js"
+model OtpVerification {
+  id      String   @id
+  otp     String   @unique
+  expires DateTime
+  userId  String
+  User    User     @relation(fields: [userId], references: [id])
+
+  @@unique([userId, otp])
+}
+
+model Project {
+  id          String    @id
+  title       String    @unique
+  description String
+  location    String
+  price       Float?
+  type        String
+  files       String[]
+  images      String[]
+  startDate   DateTime?
+  finishDate  DateTime?
+  updatedAt   DateTime?
+}
+
+model User {
+  id              String            @id @default(cuid())
+  email           String            @unique
+  phoneNumber     String?           @unique
+  password        String
+  firstName       String
+  lastName        String
+  profilePicture  String?
+  role            UserRole          @default(USER)
+  companyName     String?
+  companyRole     String?
+  address         String?
+  city            String?
+  state           String?
+  country         String?
+  createdAt       DateTime          @default(now())
+  updatedAt       DateTime          @updatedAt
+  lastLogin       DateTime?
+  loginAttempts   Int               @default(0)
+  emailVerified   DateTime?
+  userAccountId   String?           @unique
+  OtpVerification OtpVerification[]
+
+  @@unique([email, phoneNumber, userAccountId])
+  @@index([email, role, userAccountId])
+}
+
+enum UserRole {
+  ADMIN
+  USER
 }
