@@ -3,6 +3,10 @@ import bcrypt from "bcryptjs"
 import { generateAccessToken, generateRefreshToken } from "../utils/generateJwt";
 import { prisma } from "../utils/db";
 import { asyncMiddleware } from "../middleware/asyncMiddleware";
+import { generateUniqueAccountId } from "../utils/generateAccountId";
+import { generateOtp } from "../utils/generateOtp";
+import { sendOTP } from "../utils/Mail";
+
 
 export const registerUser = asyncMiddleware(async (req: Request, res: Response) => {
   try {
@@ -37,9 +41,10 @@ export const registerUser = asyncMiddleware(async (req: Request, res: Response) 
     // Hash password
     const salt = await bcrypt.genSalt(10);
     const hashedPassword = await bcrypt.hash(password, salt);
+    const userAccountId = await  generateUniqueAccountId()
 
-    // Create user
     const newUser = await prisma.user.create({
+
       data: {
         email,
         password: hashedPassword,
@@ -47,6 +52,7 @@ export const registerUser = asyncMiddleware(async (req: Request, res: Response) 
         lastName,
         phoneNumber,
         role,
+        userAccountId
       },
       select: {
         id: true,
@@ -57,18 +63,28 @@ export const registerUser = asyncMiddleware(async (req: Request, res: Response) 
       }
     });
 
-    // Generate tokens
-    const accessToken = generateAccessToken(newUser.id, newUser.role);
-    const refreshToken = generateRefreshToken(newUser.id);
+    // Verify email
+    const otp = generateOtp()
+    const expires = new Date(Date.now() + 10 * 60 * 1000); // 10 minutes
 
-    res.status(201).json({
-      message: 'User registered successfully',
-      user: newUser,
-      tokens: {
-        accessToken,
-        refreshToken
-      }
-    });
+    await prisma.otpVerification.create({
+      data: {otp, expires, userId: newUser.id}
+    })
+
+    await sendOTP(email, otp)
+  
+    res.status(201).json({ message: 'OTP sent to email' });
+
+
+    // Generate tokens
+   // const accessToken = generateAccessToken(newUser.id, newUser.role);
+   // const refreshToken = generateRefreshToken(newUser.id);
+
+    // res.status(201).json({
+    //   message: 'User registered successfully',
+    //   user: newUser,
+
+    // });
   } catch (error) {
     console.error('Registration error:', error);
     res.status(500).json({ 
@@ -78,6 +94,89 @@ export const registerUser = asyncMiddleware(async (req: Request, res: Response) 
   }
 })
 
+export const verifyOtp = asyncMiddleware(async (req: Request, res: Response) => {
+  try {
+    const {email,token} =  req.body
+
+    const user = await prisma.user.findUnique({
+      where: { email },
+      include: { OtpVerification: true },
+    });
+
+    if (!user) return res.status(404).json({ error: 'User not found' });
+    if (user.emailVerified) return res.status(400).json({ error: 'Already verified' });
+
+    const otpVerificationToken = await prisma.otpVerification.findUnique({
+      where:{ otp: token as string},
+      include: {User: true}
+    })
+
+
+    if (!otpVerificationToken) {
+      return res.status(400).json({ error: 'Invalid token' })
+    }
+    if (otpVerificationToken.expires < new Date()) {
+      await prisma.otpVerification.delete({ where: { id: otpVerificationToken.id } });
+      return res.status(400).json({ error: 'Token expired' });
+    }
+
+    await prisma.user.update({
+      where: { id: user.id },
+      data: { emailVerified: new Date() },
+    });
+
+     // Delete existing OTPs
+     await prisma.otpVerification.deleteMany({
+      where: { userId: user.id },
+    });
+
+    res.status(200).json({ message: 'Email verified successfully' });
+
+
+  }catch (error) {
+    // if (error instanceof Error) {
+    //   if (error.message === 'Rate limiter exceeded') {
+    //     return res.status(429).json({ error: 'Too many attempts' });
+    //   }
+    // }
+    res.status(500).json({ error: 'Verification failed' });
+  }
+});
+
+export const resendOtp = asyncMiddleware(async (req: Request, res: Response) => {
+  try {
+    const {email} =  req.body
+
+    const user = await prisma.user.findUnique({
+      where: { email },
+      include: { OtpVerification: true },
+    });
+
+    if (!user) return res.status(404).json({ error: 'User not found' });
+
+    if (user.emailVerified) return res.status(400).json({ error: 'Already verified' });
+
+    await prisma.otpVerification.deleteMany({
+      where: { userId: user.id },
+    });
+
+  // Verify email
+  const otp = generateOtp()
+  const expires = new Date(Date.now() + 10 * 60 * 1000); // 10 minutes
+
+  await prisma.otpVerification.create({
+    data: {otp, expires, userId: user.id}
+  })
+
+  await sendOTP(email, otp)
+
+  res.status(201).json({ message: 'New OTP sent to email' });
+
+  } catch {
+    res.status(500).json({ error: 'Failed to resend OTP' });
+
+  }
+  })
 // Login Controller
 export const loginUser = asyncMiddleware(async (req: Request, res: Response) => {
   try {
@@ -87,12 +186,14 @@ export const loginUser = asyncMiddleware(async (req: Request, res: Response) => 
     //   return res.status(400).json({ errors: errors.array() });
     // }
 
-    const { email, password } = req.body;
+    const { accountId, password } = req.body;
+
+    const isEmail =  accountId.includes('@')
 
     // Find user
     const user = await prisma.user.findUnique({
-      where: { email }
-    });
+      where: isEmail? { email: accountId } : {userAccountId: accountId}
+    }, );
 
     if (!user) {
       return res.status(400).json({ 

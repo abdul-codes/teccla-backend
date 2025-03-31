@@ -8,7 +8,7 @@ datasource db {
 }
 
 model OtpVerification {
-  id      String   @id
+  id      String   @id @default(cuid())
   otp     String   @unique
   expires DateTime
   userId  String
