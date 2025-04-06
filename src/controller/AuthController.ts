@@ -8,6 +8,7 @@ import { generateOtp } from "../utils/generateOtp";
 import { sendOTP } from "../utils/Mail";
 
 
+
 export const registerUser = asyncMiddleware(async (req: Request, res: Response) => {
   try {
     // Validate input
@@ -16,32 +17,31 @@ export const registerUser = asyncMiddleware(async (req: Request, res: Response) 
     //   return res.status(400).json({ errors: errors.array() });
     // }
 
-    const { 
-      email, 
-      password, 
-      firstName, 
-      lastName, 
-      phoneNumber,
-      role = 'USER' 
+    const {
+      email,
+      password,
+      firstName,
+      lastName,
+      role = 'USER'
     } = req.body;
 
     // Check if user already exists
     const existingUser = await prisma.user.findUnique({
-      where: { 
-        email: email 
+      where: {
+        email: email
       }
     });
 
     if (existingUser) {
-      return res.status(400).json({ 
-        message: 'User with this email already exists' 
+      return res.status(400).json({
+        message: 'User with this email already exists'
       });
     }
 
     // Hash password
     const salt = await bcrypt.genSalt(10);
     const hashedPassword = await bcrypt.hash(password, salt);
-    const userAccountId = await  generateUniqueAccountId()
+    const userAccountId = await generateUniqueAccountId()
 
     const newUser = await prisma.user.create({
 
@@ -50,7 +50,6 @@ export const registerUser = asyncMiddleware(async (req: Request, res: Response) 
         password: hashedPassword,
         firstName,
         lastName,
-        phoneNumber,
         role,
         userAccountId
       },
@@ -68,17 +67,17 @@ export const registerUser = asyncMiddleware(async (req: Request, res: Response) 
     const expires = new Date(Date.now() + 10 * 60 * 1000); // 10 minutes
 
     await prisma.otpVerification.create({
-      data: {otp, expires, userId: newUser.id}
+      data: { otp, expires, userId: newUser.id }
     })
 
     await sendOTP(email, otp)
-  
+
     res.status(201).json({ message: 'OTP sent to email' });
 
 
     // Generate tokens
-   // const accessToken = generateAccessToken(newUser.id, newUser.role);
-   // const refreshToken = generateRefreshToken(newUser.id);
+    // const accessToken = generateAccessToken(newUser.id, newUser.role);
+    // const refreshToken = generateRefreshToken(newUser.id);
 
     // res.status(201).json({
     //   message: 'User registered successfully',
@@ -87,96 +86,16 @@ export const registerUser = asyncMiddleware(async (req: Request, res: Response) 
     // });
   } catch (error) {
     console.error('Registration error:', error);
-    res.status(500).json({ 
-      message: 'Error registering user', 
-      error: error instanceof Error ? error.message : 'Unknown error' 
+    res.status(500).json({
+      message: 'Error registering user',
+      error: error instanceof Error ? error.message : 'Unknown error'
     });
   }
 })
 
-export const verifyOtp = asyncMiddleware(async (req: Request, res: Response) => {
-  try {
-    const {email,token} =  req.body
-
-    const user = await prisma.user.findUnique({
-      where: { email },
-      include: { OtpVerification: true },
-    });
-
-    if (!user) return res.status(404).json({ error: 'User not found' });
-    if (user.emailVerified) return res.status(400).json({ error: 'Already verified' });
-
-    const otpVerificationToken = await prisma.otpVerification.findUnique({
-      where:{ otp: token as string},
-      include: {User: true}
-    })
 
 
-    if (!otpVerificationToken) {
-      return res.status(400).json({ error: 'Invalid token' })
-    }
-    if (otpVerificationToken.expires < new Date()) {
-      await prisma.otpVerification.delete({ where: { id: otpVerificationToken.id } });
-      return res.status(400).json({ error: 'Token expired' });
-    }
 
-    await prisma.user.update({
-      where: { id: user.id },
-      data: { emailVerified: new Date() },
-    });
-
-     // Delete existing OTPs
-     await prisma.otpVerification.deleteMany({
-      where: { userId: user.id },
-    });
-
-    res.status(200).json({ message: 'Email verified successfully' });
-
-
-  }catch (error) {
-    // if (error instanceof Error) {
-    //   if (error.message === 'Rate limiter exceeded') {
-    //     return res.status(429).json({ error: 'Too many attempts' });
-    //   }
-    // }
-    res.status(500).json({ error: 'Verification failed' });
-  }
-});
-
-export const resendOtp = asyncMiddleware(async (req: Request, res: Response) => {
-  try {
-    const {email} =  req.body
-
-    const user = await prisma.user.findUnique({
-      where: { email },
-      include: { OtpVerification: true },
-    });
-
-    if (!user) return res.status(404).json({ error: 'User not found' });
-
-    if (user.emailVerified) return res.status(400).json({ error: 'Already verified' });
-
-    await prisma.otpVerification.deleteMany({
-      where: { userId: user.id },
-    });
-
-  // Verify email
-  const otp = generateOtp()
-  const expires = new Date(Date.now() + 10 * 60 * 1000); // 10 minutes
-
-  await prisma.otpVerification.create({
-    data: {otp, expires, userId: user.id}
-  })
-
-  await sendOTP(email, otp)
-
-  res.status(201).json({ message: 'New OTP sent to email' });
-
-  } catch {
-    res.status(500).json({ error: 'Failed to resend OTP' });
-
-  }
-  })
 // Login Controller
 export const loginUser = asyncMiddleware(async (req: Request, res: Response) => {
   try {
@@ -188,16 +107,16 @@ export const loginUser = asyncMiddleware(async (req: Request, res: Response) => 
 
     const { accountId, password } = req.body;
 
-    const isEmail =  accountId.includes('@')
+    const isEmail = accountId.includes('@')
 
     // Find user
     const user = await prisma.user.findUnique({
-      where: isEmail? { email: accountId } : {userAccountId: accountId}
-    }, );
+      where: isEmail ? { email: accountId } : { userAccountId: accountId }
+    },);
 
     if (!user) {
-      return res.status(400).json({ 
-        message: 'Invalid credentials' 
+      return res.status(400).json({
+        message: 'Invalid credentials'
       });
     }
 
@@ -211,19 +130,26 @@ export const loginUser = asyncMiddleware(async (req: Request, res: Response) => 
         data: { loginAttempts: { increment: 1 } }
       });
 
-      return res.status(400).json({ 
-        message: 'Invalid credentials' 
+      return res.status(400).json({
+        message: 'Invalid credentials'
       });
     }
+
+    if (!user.emailVerified) {
+      // Verify email
+      return res.status(403).json({ message: "Email Verification required" })
+    }
+
 
     // Reset login attempts
     await prisma.user.update({
       where: { id: user.id },
-      data: { 
+      data: {
         loginAttempts: 0,
         lastLogin: new Date()
       }
     });
+
 
     // Generate tokens
     const accessToken = generateAccessToken(user.id, user.role);
@@ -245,9 +171,9 @@ export const loginUser = asyncMiddleware(async (req: Request, res: Response) => 
     });
   } catch (error) {
     console.error('Login error:', error);
-    res.status(500).json({ 
-      message: 'Error logging in', 
-      error: error instanceof Error ? error.message : 'Unknown error' 
+    res.status(500).json({
+      message: 'Error logging in',
+      error: error instanceof Error ? error.message : 'Unknown error'
     });
   }
 })
@@ -258,14 +184,14 @@ export const logoutUser = asyncMiddleware(async (req: Request, res: Response) =>
     // If using refresh tokens, you might want to invalidate the token here
     // This would typically involve storing invalidated tokens in a blacklist or database
 
-    res.json({ 
-      message: 'Logout successful' 
+    res.json({
+      message: 'Logout successful'
     });
   } catch (error) {
     console.error('Logout error:', error);
-    res.status(500).json({ 
-      message: 'Error logging out', 
-      error: error instanceof Error ? error.message : 'Unknown error' 
+    res.status(500).json({
+      message: 'Error logging out',
+      error: error instanceof Error ? error.message : 'Unknown error'
     });
   }
 });
