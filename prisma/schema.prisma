@@ -26,17 +26,22 @@ model OtpAttempts {
 }
 
 model Project {
-  id          String    @id
+  id          String    @id @default(cuid()) @unique
   title       String    @unique
   description String
   location    String
-  price       Float?
+  budget       Float
   type        String
   files       String[]
   images      String[]
+  status     ProjectStatus
   startDate   DateTime?
   finishDate  DateTime?
-  updatedAt   DateTime?
+  createdAt  DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  createdBy   User        @relation(fields: [createdById], references: [id])
+  createdById String 
+
 }
 
 model User {
@@ -62,6 +67,7 @@ model User {
   emailVerified   DateTime?
   userAccountId   String?           @unique
   OtpVerification OtpVerification[]
+  project           Project[]
 
   @@unique([email, phoneNumber, userAccountId])
   @@index([email, role, userAccountId])
@@ -70,4 +76,12 @@ model User {
 enum UserRole {
   ADMIN
   USER
+}
+
+
+
+enum ProjectStatus {
+  planning
+   inprogress
+    completed
 }
