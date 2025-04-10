@@ -12,7 +12,37 @@ import { asyncMiddleware } from '../middleware/asyncMiddleware';
 //   }
 // }
 
+export const getAllProjects = asyncMiddleware(async (req: Request, res: Response) => {
+  try {
+    const projects = await prisma.project.findMany({
+      include: {
+        createdBy: {
+          select: {
+            id: true,
+            firstName: true,
+            lastName: true,
+            email: true
+          }
+        }
+      },
+      orderBy: {
+       createdAt : 'desc'
+      }
+    });
 
+    return res.status(200).json({
+      success: true,
+      message: 'Projects retrieved successfully',
+      data: projects
+    });
+  } catch (error) {
+    return res.status(500).json({
+      success: false,
+      message: 'Failed to retrieve projects',
+      error: error instanceof Error ? error.message : 'Unknown error'
+    });
+  }
+});
 
 
 export const createProject = asyncMiddleware(async (req: Request, res: Response) => {
