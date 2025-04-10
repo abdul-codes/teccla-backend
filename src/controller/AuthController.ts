@@ -8,6 +8,13 @@ import { generateOtp } from "../utils/generateOtp";
 import { sendOTP } from "../utils/Mail";
 import { UserRole } from "@prisma/client";
 
+interface RegisterUserBody {
+  email: string;
+  password: string;
+  firstName: string;
+  lastName: string;
+  role?: UserRole;
+}
 
 export const registerUser = asyncMiddleware(async (req: Request, res: Response) => {
   try {
@@ -23,7 +30,7 @@ export const registerUser = asyncMiddleware(async (req: Request, res: Response) 
       firstName,
       lastName,
       role = 'USER'
-    } = req.body 
+    } = req.body as RegisterUserBody 
 
     // Check if user already exists
     const existingUser = await prisma.user.findUnique({
