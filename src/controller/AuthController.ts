@@ -16,6 +16,7 @@ interface RegisterUserBody {
   role?: UserRole;
 }
 
+
 export const registerUser = asyncMiddleware(async (req: Request, res: Response) => {
   try {
     // Validate input
@@ -30,7 +31,7 @@ export const registerUser = asyncMiddleware(async (req: Request, res: Response) 
       firstName,
       lastName,
       role = 'USER'
-    } = req.body as RegisterUserBody 
+    } = req.body as RegisterUserBody
 
     // Check if user already exists
     const existingUser = await prisma.user.findUnique({
