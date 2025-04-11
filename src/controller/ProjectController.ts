@@ -76,7 +76,8 @@ export const createProject = asyncMiddleware(async (req: Request, res: Response)
         ...validatedData,
         startDate: validatedData.startDate ? new Date(validatedData.startDate) : null,
         finishDate: validatedData.finishDate ? new Date(validatedData.finishDate) : null,
-        createdById: req.user.id
+        createdById: req.user.id,
+        status: validatedData.status.toUpperCase() as 'PLANNING' | 'IN_PROGRESS' | 'COMPLETED'
       },
       include: {
         createdBy: {
