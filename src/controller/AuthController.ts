@@ -16,6 +16,8 @@ interface RegisterUserBody {
   role?: UserRole;
 }
 
+const MAX_ATTEMPTS = 5;
+const LOCK_TIME = 15 * 60 * 1000; // 15 minutes
 
 export const registerUser = asyncMiddleware(async (req: Request, res: Response) => {
   try {
@@ -120,7 +122,7 @@ export const loginUser = asyncMiddleware(async (req: Request, res: Response) => 
     // Find user
     const user = await prisma.user.findUnique({
       where: isEmail ? { email: accountId } : { userAccountId: accountId }
-    },);
+    });
 
     if (!user) {
       return res.status(400).json({
@@ -128,14 +130,19 @@ export const loginUser = asyncMiddleware(async (req: Request, res: Response) => 
       });
     }
 
-
+// Add before password check
+if (user.loginAttempts >= MAX_ATTEMPTS) {
+  return res.status(429).json({ 
+    message: 'Account locked. Please reset your password' 
+  });
+}
     // Verify password
     const isMatch = await bcrypt.compare(password, user.password);
     if (!isMatch) {
       // Increment login attempts
       await prisma.user.update({
         where: { id: user.id },
-        data: { loginAttempts: { increment: 1 } }
+        data: { loginAttempts: { increment: 1 } , lastLogin: new Date()}
       });
 
       return res.status(400).json({
@@ -163,6 +170,15 @@ export const loginUser = asyncMiddleware(async (req: Request, res: Response) => 
     const accessToken = generateAccessToken(user.id, user.role);
     const refreshToken = generateRefreshToken(user.id);
 
+    // Set refresh token in HttpOnly cookie
+    res.cookie('refreshToken', refreshToken, {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === 'production', // Use secure cookies in production
+      sameSite: 'strict', // Prevent CSRF
+      maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days (match refresh token expiry if possible)
+    });
+
+    // Send response with user details and access token
     res.json({
       message: 'Login successful',
       user: {
@@ -172,10 +188,7 @@ export const loginUser = asyncMiddleware(async (req: Request, res: Response) => 
         lastName: user.lastName,
         role: user.role
       },
-      tokens: {
-        accessToken,
-        refreshToken
-      }
+      accessToken // Send only access token in the body
     });
   } catch (error) {
     console.error('Login error:', error);

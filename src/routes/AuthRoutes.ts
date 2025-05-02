@@ -4,14 +4,16 @@ import { loginUser, logoutUser, registerUser } from "../controller/AuthControlle
 import { authenticateUser } from "../middleware/authMIddleware";
 import { verifyOtp } from "../controller/verifyOtp";
 import { resendOtp } from "../controller/resendOtp";
+import { refreshToken } from "../controller/JwtController";
 
 
 const router =  Router()
 
+router.post("/refresh", authenticateUser, refreshToken)
 router.post("/register", registervalidation, registerUser)
-router.post("/login", loginValidation, authenticateUser, loginUser)
-router.post("/verifyOtp", validateVeirfyOtp, verifyOtp)
-router.post("/resendOtp",validateResendOtp, resendOtp)
+router.post("/login", loginValidation, loginUser)
+router.post("/verifyOtp", validateVeirfyOtp, authenticateUser, verifyOtp)
+router.post("/resendOtp",validateResendOtp, authenticateUser, resendOtp)
 router.post("/logout", logoutUser)
 
 

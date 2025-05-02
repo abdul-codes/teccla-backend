@@ -41,7 +41,6 @@ export const validateResendOtp = [
     handleValidationErrors
 ]
 export const validateVeirfyOtp = [
-    body('email').isEmail().normalizeEmail(),
     body('token').isInt().notEmpty(),
     handleValidationErrors
 ]

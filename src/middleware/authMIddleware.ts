@@ -61,9 +61,12 @@ export const authenticateUser = asyncMiddleware( async(
   
       next();
     } catch (error) {
-      res.status(401).json({
-        message: "Token is not valid",
-      });
+      if (error instanceof jwt.JsonWebTokenError) {
+        res.status(401).json({ message: "Invalid or expired access token" });
+      } else {
+        console.error("Authentication error:", error);
+        res.status(500).json({ message: "Server error during authentication" });
+      }
     }
   });
   

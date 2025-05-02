@@ -13,7 +13,7 @@ export const generateAccessToken = (userId: string, role: string) => {
   });
 };
 
-// Generate Refresh Token
+// Generate Refresh Token 
 export const generateRefreshToken = (userId: string) => {
   return jwt.sign({ id: userId }, REFRESH_TOKEN, {
     expiresIn: '7d'
