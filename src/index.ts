@@ -5,6 +5,7 @@ import compression from "compression"
 import limiter from './middleware/rateLImitMiddleware'
 import authRoutes from "./routes/AuthRoutes"
 import userRoutes from "./routes/UserRoutes"
+import userProfileRoutes from "./routes/UserProfileRoutes"
 
 const app = express()
 
@@ -17,6 +18,7 @@ app.use(limiter)
 
 app.use('/auth', authRoutes)
 app.use('/users', userRoutes)
+app.use('/profile', userProfileRoutes)
 
 //To use it only for a certain path (e.g., limit only calls to the /auth/* endpoints), 
 // specify the url as the first parameter in app.use

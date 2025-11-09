@@ -137,7 +137,23 @@ export const updateUserProfile = asyncMiddleware(async (req: Request, res: Respo
     const updatedUser = await prisma.user.update({
       where: { id: userId },
       data: updateData,
-      select: { id: true }
+      select: {
+        id: true,
+        email: true,
+        firstName: true,
+        lastName: true,
+        phoneNumber: true,
+        profilePicture: true,
+        role: true,
+        companyName: true,
+        companyRole: true,
+        address: true,
+        city: true,
+        state: true,
+        country: true,
+        createdAt: true,
+        updatedAt: true
+      }
     });
 
     res.status(200).json({
@@ -153,28 +169,4 @@ export const updateUserProfile = asyncMiddleware(async (req: Request, res: Respo
   }
 });
 
-export const getUserProfile = asyncMiddleware(async (req: Request, res: Response) => {
-  const userId = req.user?.id; // From auth middleware
-  if (!userId) {
-    return res.status(401).json({ message: "Unauthorized" });
-  }
-  try {
 
-    const user = await prisma.user.findUnique({
-      where: { id: userId },
-      select: userProfileSelect
-    });
-
-    if (!user) {
-      return res.status(404).json({ message: "User not found" });
-    }
-
-    res.status(200).json({ user });
-  } catch (error) {
-    console.error("Get profile error:", error);
-    res.status(500).json({
-      message: "Error fetching profile",
-      error: error instanceof Error ? error.message : "Unknown error",
-    });
-  }
-});
