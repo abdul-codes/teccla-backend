@@ -1,26 +1,41 @@
-import multer from 'multer';
-import { Request } from 'express';
+import multer from "multer";
 
+// Configure multer for memory storage
 const storage = multer.memoryStorage();
 
-const fileFilter = (req: Request, file: Express.Multer.File, cb: multer.FileFilterCallback) => {
-  const allowedMimes = [
-    'image/jpeg',
-    'image/png',
-    'application/pdf',
-    'application/msword',
-    'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
+// File filter to allow only specific image and document types
+const fileFilter = (req: any, file: any, cb: any) => {
+  const allowedImageTypes = ["image/jpeg", "image/png", "image/gif"];
+  const allowedDocumentTypes = [
+    "application/pdf",
+    "application/msword",
+    "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
   ];
 
-  if (allowedMimes.includes(file.mimetype)) {
+  if (
+    allowedImageTypes.includes(file.mimetype) ||
+    allowedDocumentTypes.includes(file.mimetype)
+  ) {
     cb(null, true);
   } else {
-    cb(new Error('Invalid file type'));
+    cb(
+      new Error(
+        "Invalid file type. Only images (jpeg, png, gif) and documents (pdf, doc, docx) are allowed.",
+      ),
+      false,
+    );
   }
 };
 
-export const upload = multer({
+const upload = multer({
   storage,
-  limits: { fileSize: 15 * 1024 * 1024 }, // 15MB
-  fileFilter
+  fileFilter,
+  limits: {
+    fileSize: 1024 * 1024 * 10, // 10 MB limit per file
+  },
 });
+
+export const uploadProjectFiles = upload.fields([
+  { name: "images", maxCount: 10 },
+  { name: "files", maxCount: 10 },
+]);
