@@ -1,14 +1,18 @@
 import { Router } from "express";
-import { authenticateUser, authorizeAdmin, authorizeRoles } from "../middleware/authMIddleware";
-import { getAllUsers, updateCurrentUser } from "../controller/UserController";
+import { authenticateUser, authorizeRoles } from "../middleware/authMIddleware";
+import { getAllUsers, getUserById, updateUser, deleteUser, getCurrentUser } from "../controller/UserController";
 import { UserRole } from "@prisma/client";
 
 
 const router =  Router()
 
-router.get("/allusers", authenticateUser, authorizeAdmin, getAllUsers)
-router.get("/allusers", authenticateUser, authorizeRoles(UserRole.ADMIN), getAllUsers)
-router.get("updateprofile", authenticateUser, updateCurrentUser)
+// Admin routes
+router.get("/", authenticateUser, authorizeRoles(UserRole.ADMIN), getAllUsers)
+router.delete("/:id", authenticateUser, authorizeRoles(UserRole.ADMIN), deleteUser)
 
+// User routes (authenticated users)
+router.get("/profile", authenticateUser, getCurrentUser) // Get current user's profile
+router.get("/:id", authenticateUser, getUserById) // Get any user's profile by ID (for users to see others' profiles)
+router.put("/:id", authenticateUser, updateUser) // Update user profile by ID (users can update their own)
 
 export default router;

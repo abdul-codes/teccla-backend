@@ -41,7 +41,7 @@ export const validateResendOtp = [
     handleValidationErrors
 ]
 export const validateVeirfyOtp = [
-    body('token').isInt().notEmpty(),
+    body('token').isString().isLength({ min: 6, max: 6 }).notEmpty(),
     handleValidationErrors
 ]
 

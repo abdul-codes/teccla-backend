@@ -25,6 +25,16 @@ model OtpAttempts {
   User      User     @relation(fields: [userId], references: [id])
 }
 
+model RefreshToken {
+  id        String   @id @default(cuid())
+  token     String   @unique
+  userId    String
+  User      User     @relation(fields: [userId], references: [id])
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+  revoked   Boolean  @default(false)
+}
+
 model Asset {
   id          String   @id @default(cuid())
   url         String 
@@ -87,6 +97,7 @@ model User {
   emailVerified   DateTime?
   userAccountId   String?           @unique
   OtpVerification OtpVerification[]
+  RefreshTokens   RefreshToken[]
   projects        Project[]
   assets          Asset[] 
 

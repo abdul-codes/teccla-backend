@@ -3,8 +3,12 @@ import jwt from 'jsonwebtoken';
 
 
 // JWT Configuration
-const ACCESS_TOKEN = process.env.ACCESS_TOKEN  as string;
-const REFRESH_TOKEN = process.env.REFRESH_TOKEN  as string;
+const ACCESS_TOKEN = process.env.ACCESS_TOKEN;
+const REFRESH_TOKEN = process.env.REFRESH_TOKEN;
+
+if (!ACCESS_TOKEN || !REFRESH_TOKEN) {
+  throw new Error('JWT secrets not configured in environment variables');
+}
 
 // Generate Access Token
 export const generateAccessToken = (userId: string, role: string) => {

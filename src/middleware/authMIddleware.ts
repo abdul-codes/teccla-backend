@@ -5,7 +5,11 @@ import { prisma } from "../utils/db";
 import { UserRole } from "@prisma/client";
 
 
-const ACCESS_TOKEN = process.env.ACCESS_TOKEN as string;
+const ACCESS_TOKEN = process.env.ACCESS_TOKEN;
+
+if (!ACCESS_TOKEN) {
+  throw new Error('ACCESS_TOKEN environment variable not configured');
+}
 
 
 declare global {

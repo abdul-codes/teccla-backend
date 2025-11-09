@@ -1,5 +1,6 @@
 import { Request, Response } from "express";
 import bcrypt from "bcryptjs"
+import jwt from "jsonwebtoken";
 import { generateAccessToken, generateRefreshToken } from "../utils/generateJwt";
 import { prisma } from "../utils/db";
 import { asyncMiddleware } from "../middleware/asyncMiddleware";
@@ -7,6 +8,8 @@ import { generateUniqueAccountId } from "../utils/generateAccountId";
 import { generateOtp } from "../utils/generateOtp";
 import { sendOTP } from "../utils/Mail";
 import { UserRole } from "@prisma/client";
+
+const REFRESH_TOKEN = process.env.REFRESH_TOKEN as string;
 
 interface RegisterUserBody {
   email: string;
@@ -170,6 +173,15 @@ if (user.loginAttempts >= MAX_ATTEMPTS) {
     const accessToken = generateAccessToken(user.id, user.role);
     const refreshToken = generateRefreshToken(user.id);
 
+    // Create refresh token record in database
+    await prisma.refreshToken.create({
+      data: {
+        token: refreshToken,
+        userId: user.id,
+        expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000), // 7 days expiry
+      }
+    });
+
     // Set refresh token in HttpOnly cookie
     res.cookie('refreshToken', refreshToken, {
       httpOnly: true,
@@ -202,8 +214,35 @@ if (user.loginAttempts >= MAX_ATTEMPTS) {
 // Logout Controller
 export const logoutUser = asyncMiddleware(async (req: Request, res: Response) => {
   try {
-    // If using refresh tokens, you might want to invalidate the token here
-    // This would typically involve storing invalidated tokens in a blacklist or database
+    // Get the refresh token from cookie
+    const refreshToken = req.cookies?.refreshToken;
+
+    // If refresh token exists, add it to the blacklist
+    if (refreshToken) {
+      try {
+        // Verify the refresh token to get user ID
+        const decoded = jwt.verify(refreshToken, REFRESH_TOKEN as string) as { id: string };
+        
+        // Add the refresh token to the blacklist
+        await prisma.refreshToken.create({
+          data: {
+            token: refreshToken,
+            userId: decoded.id,
+            expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000), // 7 days expiry
+          }
+        });
+      } catch (verifyError) {
+        console.error('Error verifying refresh token for blacklisting:', verifyError);
+        // Continue with logout even if we can't blacklist the token
+      }
+    }
+
+    // Clear the refresh token cookie
+    res.clearCookie('refreshToken', {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === 'production',
+      sameSite: 'strict',
+    });
 
     res.json({
       message: 'Logout successful'
