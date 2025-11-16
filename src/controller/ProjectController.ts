@@ -158,8 +158,6 @@ export const createProject = asyncMiddleware(
   },
 );
 
-// ... (keep the rest of the functions)
-
 // restrict available file type and size
 
 export const getProjectById = asyncMiddleware(
