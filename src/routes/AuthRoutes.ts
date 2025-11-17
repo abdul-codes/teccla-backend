@@ -9,7 +9,7 @@ import { refreshToken } from "../controller/JwtController";
 
 const router =  Router()
 
-router.post("/refresh", authenticateUser, refreshToken)
+router.post("/refresh", refreshToken)
 router.post("/register", registervalidation, registerUser)
 router.post("/login", loginValidation, loginUser)
 router.post("/verifyOtp", validateVeirfyOtp, verifyOtp)

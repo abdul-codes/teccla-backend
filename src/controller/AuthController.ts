@@ -1,4 +1,5 @@
 import { Request, Response } from "express";
+import { validationResult } from "express-validator";
 import bcrypt from "bcryptjs"
 import jwt from "jsonwebtoken";
 import { generateAccessToken, generateRefreshToken } from "../utils/generateJwt";
@@ -24,11 +25,14 @@ const LOCK_TIME = 15 * 60 * 1000; // 15 minutes
 
 export const registerUser = asyncMiddleware(async (req: Request, res: Response) => {
   try {
+    console.log('Registration request body:', req.body);
+    
     // Validate input
-    // const errors = validationResult(req);
-    // if (!errors.isEmpty()) {
-    //   return res.status(400).json({ errors: errors.array() });
-    // }
+    const errors = validationResult(req);
+    if (!errors.isEmpty()) {
+      console.log('Validation errors:', errors.array());
+      return res.status(400).json({ errors: errors.array() });
+    }
 
     const {
       email,
@@ -83,9 +87,19 @@ export const registerUser = asyncMiddleware(async (req: Request, res: Response) 
       data: { otp, expires, userId: newUser.id }
     })
 
-    await sendOTP(email, otp)
-
-    res.status(201).json({ message: 'OTP sent to email' });
+    try {
+      await sendOTP(email, otp)
+      res.status(201).json({ message: 'OTP sent to email' });
+    } catch (emailError) {
+      console.error('Email sending failed:', emailError);
+      // For development or when email is not configured, allow registration to proceed
+      if (!process.env.EMAIL_USER || !process.env.EMAIL_PASS || process.env.NODE_ENV !== 'production') {
+        console.log('OTP for testing:', otp);
+        res.status(201).json({ message: 'User registered successfully (OTP not sent)', otp });
+      } else {
+        res.status(500).json({ message: 'Failed to send verification email' });
+      }
+    }
 
 
     // Generate tokens
