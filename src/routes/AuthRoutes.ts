@@ -14,7 +14,7 @@ router.post("/register", registervalidation, registerUser)
 router.post("/login", loginValidation, loginUser)
 router.post("/verifyOtp", validateVeirfyOtp, verifyOtp)
 router.post("/resendOtp",validateResendOtp, resendOtp)
-router.post("/logout", logoutUser)
+router.post("/logout", authenticateUser, logoutUser)
 
 
 export default router;
