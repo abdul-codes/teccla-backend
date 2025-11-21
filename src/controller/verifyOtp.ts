@@ -19,7 +19,6 @@ export const verifyOtp = asyncMiddleware(async (req: Request, res: Response) => 
           otp: token as string,
           userId: user.id
         },
-        include: { User: true }
       })
   
   
