@@ -6,6 +6,7 @@ import limiter from "./middleware/rateLImitMiddleware";
 import authRoutes from "./routes/AuthRoutes";
 import userRoutes from "./routes/UserRoutes";
 import userProfileRoutes from "./routes/UserProfileRoutes";
+import projectRoutes from "./routes/ProjectRoutes";
 
 const app = express();
 
@@ -18,6 +19,7 @@ app.use(limiter);
 app.use("/auth", authRoutes);
 app.use("/users", userRoutes);
 app.use("/profile", userProfileRoutes);
+app.use("/projects", projectRoutes);
 
 app.get("/api/test", async (req: Request, res: Response) => {
   res.json({ messsage: "hello and welcome back" });
