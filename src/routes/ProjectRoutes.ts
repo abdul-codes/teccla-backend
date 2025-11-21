@@ -29,6 +29,7 @@ router.post(
 router.patch(
   "/projects/:id",
   authenticateUser,
+  uploadProjectFiles,
   validateSchema(updateProjectSchema),
   updateProject,
 );
