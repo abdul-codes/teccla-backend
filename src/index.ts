@@ -7,6 +7,7 @@ import authRoutes from "./routes/AuthRoutes";
 import userRoutes from "./routes/UserRoutes";
 import userProfileRoutes from "./routes/UserProfileRoutes";
 import projectRoutes from "./routes/ProjectRoutes";
+import chatRoutes from "./routes/chat/ChatRoutes";
 
 const app = express();
 
@@ -20,8 +21,9 @@ app.use("/api/auth", authRoutes);
 app.use("/api/users", userRoutes);
 app.use("/api/profile", userProfileRoutes);
 app.use("/api/projects", projectRoutes);
+app.use("/api/chat", chatRoutes);
 
-app.get("/api/test", async (req: Request, res: Response) => {
+app.get("/api/test", async (_req: Request, res: Response) => {
   res.json({ messsage: "hello and welcome back" });
 });
 
