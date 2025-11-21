@@ -18,90 +18,167 @@ model OtpVerification {
 }
 
 model OtpAttempts {
-  id        String   @id @default(cuid())
-  attempts  Int      @default(0)
-  lastTry   DateTime @default(now())
-  userId    String @unique
-  User      User     @relation(fields: [userId], references: [id])
+  id       String   @id @default(cuid())
+  attempts Int      @default(0)
+  lastTry  DateTime @default(now())
+  userId   String   @unique
+  User     User     @relation(fields: [userId], references: [id])
 }
 
 model RefreshToken {
   id        String   @id @default(cuid())
   token     String   @unique
   userId    String
-  User      User     @relation(fields: [userId], references: [id])
   expiresAt DateTime
   createdAt DateTime @default(now())
   revoked   Boolean  @default(false)
+  User      User     @relation(fields: [userId], references: [id])
 }
 
 model Asset {
-  id          String   @id @default(cuid())
-  url         String 
-  publicId  String
-  assetType   AssetType
-  format String
-  bytes String
-  width String
-  height String
+  id           String    @id @default(cuid())
+  url          String
+  publicId     String
+  assetType    AssetType
+  format       String
+  bytes        String
+  width        String
+  height       String
   uploadedById String
-  uploadedBy  User     @relation(fields: [uploadedById], references: [id])
+  projectId    String
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+  project      Project   @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  uploadedBy   User      @relation(fields: [uploadedById], references: [id])
 
-   project     Project    @relation(fields: [projectId], references: [id], onDelete: Cascade)
-  projectId   String
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
-
-    @@index([projectId])
+  @@index([projectId])
   @@index([assetType])
 }
 
 model Project {
-  id          String    @id @default(cuid()) @unique
-  title       String    @unique
+  id          String        @id @unique @default(cuid())
+  title       String        @unique
   description String
   location    String
   budget      Float
   type        String
-  asset       Asset[]
   status      ProjectStatus
   startDate   DateTime?
   finishDate  DateTime?
-  createdAt   DateTime  @default(now())
-  updatedAt   DateTime  @updatedAt
-  createdBy   User      @relation(fields: [createdById], references: [id])
-  createdById String 
-
+  createdAt   DateTime      @default(now())
+  updatedAt   DateTime      @updatedAt
+  createdById String
+  asset       Asset[]
+  createdBy   User          @relation(fields: [createdById], references: [id])
 }
 
 model User {
-  id              String            @id @default(cuid()) @unique
-  email           String            @unique
-  phoneNumber     String?           @unique
-  password        String
-  firstName       String
-  lastName        String
-  profilePicture  String?
-  role            UserRole          @default(USER)
-  companyName     String?
-  companyRole     String?
-  address         String?
-  city            String?
-  state           String?
-  country         String?
-  createdAt       DateTime          @default(now())
-  updatedAt       DateTime          @updatedAt
-  lastLogin       DateTime?
-  loginAttempts   Int               @default(0)
-  OtpAttempts     OtpAttempts?
-  emailVerified   DateTime?
-  userAccountId   String?           @unique
-  OtpVerification OtpVerification[]
-  RefreshTokens   RefreshToken[]
-  projects        Project[]
-  assets          Asset[] 
+  id                       String                    @id @unique @default(cuid())
+  email                    String                    @unique
+  phoneNumber              String?                   @unique
+  password                 String
+  firstName                String
+  lastName                 String
+  profilePicture           String?
+  role                     UserRole                  @default(USER)
+  companyName              String?
+  companyRole              String?
+  address                  String?
+  city                     String?
+  state                    String?
+  country                  String?
+  createdAt                DateTime                  @default(now())
+  updatedAt                DateTime                  @updatedAt
+  lastLogin                DateTime?
+  loginAttempts            Int                       @default(0)
+  emailVerified            DateTime?
+  userAccountId            String?                   @unique
+  assets                   Asset[]
+  createdConversations     Conversation[]            @relation("ConversationCreator")
+  conversationParticipants ConversationParticipant[]
+  sentMessages             Message[]                 @relation("MessageSender")
+  receivedMessageReads     MessageRead[]
+  OtpAttempts              OtpAttempts?
+  OtpVerification          OtpVerification[]
+  projects                 Project[]
+  RefreshTokens            RefreshToken[]
 
   @@index([email, role, userAccountId])
+}
+
+model Conversation {
+  id           String                    @id @default(cuid())
+  name         String?
+  description  String?
+  isGroup      Boolean                   @default(false)
+  avatar       String?
+  createdBy    String
+  createdAt    DateTime                  @default(now())
+  updatedAt    DateTime                  @updatedAt
+  creator      User                      @relation("ConversationCreator", fields: [createdBy], references: [id])
+  participants ConversationParticipant[]
+  messages     Message[]
+
+  @@index([createdBy])
+  @@index([isGroup])
+  @@index([createdAt])
+}
+
+model ConversationParticipant {
+  id             String          @id @default(cuid())
+  conversationId String
+  userId         String
+  role           ParticipantRole @default(MEMBER)
+  joinedAt       DateTime        @default(now())
+  lastReadAt     DateTime        @default(now())
+  isMuted        Boolean         @default(false)
+  conversation   Conversation    @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  user           User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+  messageReads   MessageRead[]
+
+  @@unique([conversationId, userId])
+  @@index([userId])
+  @@index([conversationId])
+}
+
+model Message {
+  id             String        @id @default(cuid())
+  conversationId String
+  senderId       String
+  content        String
+  messageType    MessageType   @default(TEXT)
+  replyToId      String?
+  attachmentUrl  String?
+  attachmentType String?
+  isEdited       Boolean       @default(false)
+  editedAt       DateTime?
+  createdAt      DateTime      @default(now())
+  updatedAt      DateTime      @updatedAt
+  conversation   Conversation  @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  replyTo        Message?      @relation("MessageReply", fields: [replyToId], references: [id])
+  replies        Message[]     @relation("MessageReply")
+  sender         User          @relation("MessageSender", fields: [senderId], references: [id])
+  messageReads   MessageRead[]
+
+  @@index([conversationId, createdAt])
+  @@index([senderId])
+  @@index([replyToId])
+}
+
+model MessageRead {
+  id            String                  @id @default(cuid())
+  messageId     String
+  userId        String
+  participantId String
+  readAt        DateTime                @default(now())
+  message       Message                 @relation(fields: [messageId], references: [id], onDelete: Cascade)
+  participant   ConversationParticipant @relation(fields: [participantId], references: [id], onDelete: Cascade)
+  user          User                    @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([messageId, userId])
+  @@index([messageId])
+  @@index([userId])
+  @@index([participantId])
 }
 
 enum UserRole {
@@ -120,4 +197,19 @@ enum AssetType {
   DOCUMENT
   VIDEO
   OTHER
+}
+
+enum ParticipantRole {
+  ADMIN
+  MODERATOR
+  MEMBER
+}
+
+enum MessageType {
+  TEXT
+  IMAGE
+  DOCUMENT
+  VIDEO
+  AUDIO
+  SYSTEM
 }
