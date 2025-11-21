@@ -19,7 +19,32 @@ import { asyncMiddleware } from "../middleware/asyncMiddleware";
 export const getAllProjects = asyncMiddleware(
   async (req: Request, res: Response) => {
     try {
+      // Parse pagination parameters
+      const page = parseInt(req.query.page as string) || 1;
+      const limit = parseInt(req.query.limit as string) || 10;
+      const skip = (page - 1) * limit;
+
+      // Validate pagination parameters
+      if (page < 1) {
+        return res.status(400).json({
+          success: false,
+          message: "Page must be greater than 0",
+        });
+      }
+      if (limit < 1 || limit > 100) {
+        return res.status(400).json({
+          success: false,
+          message: "Limit must be between 1 and 100",
+        });
+      }
+
+      // Get total count for pagination metadata
+      const total = await prisma.project.count();
+
+      // Get paginated projects
       const projects = await prisma.project.findMany({
+        skip,
+        take: limit,
         include: {
           createdBy: {
             select: {
@@ -35,10 +60,25 @@ export const getAllProjects = asyncMiddleware(
         },
       });
 
+      // Calculate pagination metadata
+      const totalPages = Math.ceil(total / limit);
+      const hasNextPage = page < totalPages;
+      const hasPrevPage = page > 1;
+
       return res.status(200).json({
         success: true,
         message: "Projects retrieved successfully",
-        data: projects,
+        data: {
+          projects,
+          pagination: {
+            currentPage: page,
+            totalPages,
+            totalItems: total,
+            itemsPerPage: limit,
+            hasNextPage,
+            hasPrevPage,
+          },
+        },
       });
     } catch (error) {
       return res.status(500).json({
@@ -167,6 +207,7 @@ export const getProjectById = asyncMiddleware(
       const project = await prisma.project.findUnique({
         where: { id },
         include: {
+          asset: true,
           createdBy: {
             select: {
               id: true,
