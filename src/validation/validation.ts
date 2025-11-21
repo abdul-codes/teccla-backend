@@ -13,7 +13,7 @@ const handleValidationErrors = asyncMiddleware(async (req: Request, res: Respons
 
 
 export const registervalidation = [
-    body("email").isEmail().notEmpty().withMessage("Valid email is required"),
+    body("email").isEmail().normalizeEmail().withMessage("Valid email is required"),
     body("password")
         .isLength({ min: 8 })
         .notEmpty()
@@ -37,11 +37,12 @@ export const loginValidation = [
     handleValidationErrors
 ]
 export const validateResendOtp = [
-    body('email').isEmail().normalizeEmail(),
+    body('email').isEmail().normalizeEmail().withMessage('Valid email is required'),
     handleValidationErrors
 ]
-export const validateVeirfyOtp = [
-    body('token').isString().isLength({ min: 6, max: 6 }).notEmpty(),
+export const validateVerifyOtp = [
+    body('email').isEmail().normalizeEmail().withMessage('Valid email is required'),
+    body('token').isString().isLength({ min: 6, max: 6 }).withMessage('OTP must be 6 digits'),
     handleValidationErrors
 ]
 

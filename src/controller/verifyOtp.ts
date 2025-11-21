@@ -14,8 +14,11 @@ export const verifyOtp = asyncMiddleware(async (req: Request, res: Response) => 
       if (!user) return res.status(404).json({ error: 'User not found' });
       if (user.emailVerified) return res.status(400).json({ error: 'Already verified' });
   
-      const otpVerificationToken = await prisma.otpVerification.findUnique({
-        where: { otp: token as string },
+      const otpVerificationToken = await prisma.otpVerification.findFirst({
+        where: { 
+          otp: token as string,
+          userId: user.id
+        },
         include: { User: true }
       })
   

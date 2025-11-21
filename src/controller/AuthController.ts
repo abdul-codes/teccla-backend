@@ -92,7 +92,15 @@ export const registerUser = asyncMiddleware(
 
       try {
         await sendOTP(email, otp);
-        res.status(201).json({ message: "OTP sent to email" });
+        res.status(201).json({ 
+          message: "Registration successful. Please check your email for OTP verification.",
+          user: {
+            id: newUser.id,
+            email: newUser.email,
+            firstName: newUser.firstName,
+            lastName: newUser.lastName,
+          }
+        });
       } catch (emailError) {
         console.error("Email sending failed:", emailError);
         // For development or when email is not configured, allow registration to proceed
@@ -105,8 +113,13 @@ export const registerUser = asyncMiddleware(
           res
             .status(201)
             .json({
-              message: "User registered successfully (OTP not sent)",
-              otp,
+              message: "Registration successful. Check console for OTP (development mode)",
+              user: {
+                id: newUser.id,
+                email: newUser.email,
+                firstName: newUser.firstName,
+                lastName: newUser.lastName,
+              }
             });
         } else {
           res
@@ -114,16 +127,6 @@ export const registerUser = asyncMiddleware(
             .json({ message: "Failed to send verification email" });
         }
       }
-
-      // Generate tokens
-      // const accessToken = generateAccessToken(newUser.id, newUser.role);
-      // const refreshToken = generateRefreshToken(newUser.id);
-
-      // res.status(201).json({
-      //   message: 'User registered successfully',
-      //   user: newUser,
-
-      // });
     } catch (error) {
       console.error("Registration error:", error);
       res.status(500).json({
@@ -139,10 +142,10 @@ export const loginUser = asyncMiddleware(
   async (req: Request, res: Response) => {
     try {
       // Validate input
-      // const errors = validationResult(req);
-      // if (!errors.isEmpty()) {
-      //   return res.status(400).json({ errors: errors.array() });
-      // }
+      const errors = validationResult(req);
+      if (!errors.isEmpty()) {
+        return res.status(400).json({ errors: errors.array() });
+      }
 
       const { accountId, password } = req.body;
 

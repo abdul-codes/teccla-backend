@@ -1,5 +1,5 @@
 import { Router } from "express";
-import { loginValidation, registervalidation, validateResendOtp, validateVeirfyOtp } from "../validation/validation";
+import { loginValidation, registervalidation, validateResendOtp, validateVerifyOtp } from "../validation/validation";
 import { loginUser, logoutUser, registerUser } from "../controller/AuthController";
 import { authenticateUser } from "../middleware/authMIddleware";
 import { verifyOtp } from "../controller/verifyOtp";
@@ -12,9 +12,8 @@ const router =  Router()
 router.post("/refresh", refreshToken)
 router.post("/register", registervalidation, registerUser)
 router.post("/login", loginValidation, loginUser)
-router.post("/verifyOtp", validateVeirfyOtp, verifyOtp)
+router.post("/verifyOtp", validateVerifyOtp, verifyOtp)
 router.post("/resendOtp",validateResendOtp, resendOtp)
 router.post("/logout", authenticateUser, logoutUser)
-
 
 export default router;
