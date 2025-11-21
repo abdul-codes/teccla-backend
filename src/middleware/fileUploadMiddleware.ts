@@ -5,11 +5,15 @@ const storage = multer.memoryStorage();
 
 // File filter to allow only specific image and document types
 const fileFilter = (req: any, file: any, cb: any) => {
-  const allowedImageTypes = ["image/jpeg", "image/png", "image/gif"];
+  const allowedImageTypes = ["image/jpeg", "image/png"];
   const allowedDocumentTypes = [
     "application/pdf",
     "application/msword",
     "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+    "application/vnd.ms-powerpoint",
+    "application/vnd.openxmlformats-officedocument.presentationml.presentation",
+    "application/vnd.ms-excel",
+    "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
   ];
 
   if (
@@ -20,7 +24,7 @@ const fileFilter = (req: any, file: any, cb: any) => {
   } else {
     cb(
       new Error(
-        "Invalid file type. Only images (jpeg, png, gif) and documents (pdf, doc, docx) are allowed.",
+        "Invalid file type. Only images (jpeg, png) and documents (pdf, doc, docx, ppt, pptx, xls, xlsx) are allowed.",
       ),
       false,
     );
