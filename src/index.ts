@@ -16,10 +16,10 @@ app.use(express.urlencoded({ extended: true }));
 app.use(cors());
 app.use(limiter);
 
-app.use("/auth", authRoutes);
-app.use("/users", userRoutes);
-app.use("/profile", userProfileRoutes);
-app.use("/projects", projectRoutes);
+app.use("/api/auth", authRoutes);
+app.use("/api/users", userRoutes);
+app.use("/api/profile", userProfileRoutes);
+app.use("/api/projects", projectRoutes);
 
 app.get("/api/test", async (req: Request, res: Response) => {
   res.json({ messsage: "hello and welcome back" });
