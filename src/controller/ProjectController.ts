@@ -205,44 +205,132 @@ export const updateProject = asyncMiddleware(
     const validatedData: UpdateProjectInput = req.body;
 
     try {
-      const project = await prisma.project.findUnique({
-        where: { id },
-      });
-
-      if (!project) {
-        return res
-          .status(404)
-          .json({ success: false, message: "Project not found" });
-      }
-
-      // Authorization check
-      if (project.createdById !== req.user!.id && req.user!.role !== "ADMIN") {
-        return res.status(403).json({
-          success: false,
-          message: "Not authorized to update this project",
+      // Use transaction for atomic operations
+      const result = await prisma.$transaction(async (tx) => {
+        // Get existing project with assets
+        const existingProject = await tx.project.findUnique({
+          where: { id },
+          include: { asset: true }
         });
-      }
 
-      const updatedProject = await prisma.project.update({
-        where: { id },
-        data: {
-          ...validatedData,
-          startDate: validatedData.startDate
-            ? new Date(validatedData.startDate)
-            : undefined,
-          finishDate: validatedData.finishDate
-            ? new Date(validatedData.finishDate)
-            : undefined,
-        },
+        if (!existingProject) {
+          throw new Error("Project not found");
+        }
+
+        // Authorization check
+        if (existingProject.createdById !== req.user!.id && req.user!.role !== "ADMIN") {
+          throw new Error("Not authorized to update this project");
+        }
+
+        // Handle asset deletions if specified
+        if (validatedData.deleteAssets && Array.isArray(validatedData.deleteAssets)) {
+          const assetsToDelete = await tx.asset.findMany({
+            where: {
+              id: { in: validatedData.deleteAssets },
+              projectId: id,
+            },
+          });
+
+          for (const asset of assetsToDelete) {
+            await deleteFromCloudinary(asset.publicId);
+            await tx.asset.delete({ where: { id: asset.id } });
+          }
+        }
+
+        // Handle new file uploads
+        const files = (req.files as {
+          [fieldname: string]: Express.Multer.File[];
+        }) || {};
+
+        if (files.images?.length || files.files?.length) {
+          const fileUploadPromises: Promise<void>[] = [];
+
+          const processFiles = (
+            fileArray: Express.Multer.File[],
+            assetType: AssetType,
+          ) => {
+            for (const file of fileArray) {
+              fileUploadPromises.push(
+                (async () => {
+                  const result = await uploadToCloudinary(file, "projects");
+                  await tx.asset.create({
+                    data: {
+                      url: result.secure_url,
+                      publicId: result.public_id,
+                      assetType: assetType,
+                      format: result.format,
+                      bytes: result.bytes.toString(),
+                      width: result.width.toString(),
+                      height: result.height.toString(),
+                      uploadedById: req.user!.id,
+                      projectId: id,
+                    },
+                  });
+                })(),
+              );
+            }
+          };
+
+          if (files.images) processFiles(files.images, AssetType.IMAGE);
+          if (files.files) processFiles(files.files, AssetType.DOCUMENT);
+
+          await Promise.all(fileUploadPromises);
+        }
+
+        // Update project data
+        const updatedProject = await tx.project.update({
+          where: { id },
+          data: {
+            title: validatedData.title,
+            description: validatedData.description,
+            location: validatedData.location,
+            budget: validatedData.budget,
+            type: validatedData.type,
+            status: validatedData.status,
+            startDate: validatedData.startDate
+              ? new Date(validatedData.startDate)
+              : undefined,
+            finishDate: validatedData.finishDate
+              ? new Date(validatedData.finishDate)
+              : undefined,
+          },
+          include: { 
+            asset: true, 
+            createdBy: { 
+              select: { 
+                id: true, 
+                firstName: true, 
+                lastName: true, 
+                email: true 
+              } 
+            } 
+          }
+        });
+
+        return updatedProject;
       });
 
       return res.status(200).json({
         success: true,
         message: "Project updated successfully",
-        data: updatedProject,
+        data: result,
       });
     } catch (error) {
       console.error("Project update error:", error);
+      if (error instanceof Error) {
+        if (error.message === "Project not found") {
+          return res.status(404).json({
+            success: false,
+            message: "Project not found",
+          });
+        }
+        if (error.message === "Not authorized to update this project") {
+          return res.status(403).json({
+            success: false,
+            message: "Not authorized to update this project",
+          });
+        }
+      }
       return res.status(500).json({
         success: false,
         message: "Internal server error",
@@ -256,36 +344,49 @@ export const deleteProject = asyncMiddleware(
     const { id } = req.params;
 
     try {
-      const project = await prisma.project.findUnique({
+      // Get project with assets for cleanup
+      const projectWithAssets = await prisma.project.findUnique({
         where: { id },
+        include: { asset: true }
       });
 
-      if (!project) {
-        return res
-          .status(404)
-          .json({ success: false, message: "Project not found" });
+      if (!projectWithAssets) {
+        return res.status(404).json({ 
+          success: false, 
+          message: "Project not found" 
+        });
       }
 
       // Authorization check
-      if (project.createdById !== req.user!.id && req.user!.role !== "ADMIN") {
+      if (projectWithAssets.createdById !== req.user!.id && req.user!.role !== "ADMIN") {
         return res.status(403).json({
           success: false,
           message: "Not authorized to delete this project",
         });
       }
 
-      await prisma.project.delete({
-        where: { id },
-      });
+      // Clean up Cloudinary assets first
+      const cloudinaryDeletePromises = projectWithAssets.asset.map(asset => 
+        deleteFromCloudinary(asset.publicId).catch(err => 
+          console.error(`Failed to delete asset ${asset.publicId}:`, err)
+        )
+      );
 
-      return res
-        .status(200)
-        .json({ success: true, message: "Project deleted successfully" });
+      await Promise.all(cloudinaryDeletePromises);
+
+      // Delete project (cascade will handle DB assets)
+      await prisma.project.delete({ where: { id } });
+
+      return res.status(200).json({
+        success: true,
+        message: "Project and assets deleted successfully",
+        data: { deletedAssetsCount: projectWithAssets.asset.length }
+      });
     } catch (error) {
       console.error("Project delete error:", error);
       return res.status(500).json({
         success: false,
-        message: "Internal server error",
+        message: "Internal server error during project deletion",
       });
     }
   },
