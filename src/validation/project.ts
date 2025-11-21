@@ -13,6 +13,8 @@ export const createProjectSchema = z.object({
 
 export type CreateProjectInput = z.infer<typeof createProjectSchema>;
 
-export const updateProjectSchema = createProjectSchema.partial();
+export const updateProjectSchema = createProjectSchema.partial().extend({
+  deleteAssets: z.array(z.string()).optional(),
+});
 
 export type UpdateProjectInput = z.infer<typeof updateProjectSchema>;
