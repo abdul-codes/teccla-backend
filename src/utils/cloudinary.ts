@@ -10,7 +10,7 @@ export const uploadToCloudinary = (file: Express.Multer.File, folder: string): P
       {
         folder: `real_estate/${folder}`,
         resource_type: 'auto',
-        allowed_formats: ['jpg', 'png', 'pdf', 'doc', 'docx', 'mp4'],
+        allowed_formats: ['jpg', 'jpeg', 'png', 'pdf', 'doc', 'docx', 'ppt', 'pptx', 'xls', 'xlsx'],
         transformation: { quality: 'auto', fetch_format: 'auto' }
       },
       (error, result) => {
