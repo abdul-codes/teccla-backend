@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import { authenticateUser } from '../../middleware/authMIddleware';
 import { isConversationParticipant, canManageConversation, canEditMessage } from '../../middleware/chatMiddleware';
+import { messageRateLimitMiddleware, messageRateLimiter, conversationMessageLimiter } from '../../middleware/messageRateLimitMiddleware';
 import { createConversationValidation, addParticipantValidation, updateConversationValidation } from '../../validation/chat/conversation';
 import { sendMessageValidation, updateMessageValidation, markMessagesReadValidation } from '../../validation/chat/message';
 
@@ -39,7 +40,13 @@ router.delete('/conversations/:id/participants/:userId', isConversationParticipa
 router.delete('/conversations/:id/leave', isConversationParticipant, leaveConversation);
 
 // Message routes
-router.post('/messages', sendMessageValidation, sendMessage);
+router.post('/messages', 
+  messageRateLimitMiddleware,
+  messageRateLimiter,
+  conversationMessageLimiter,
+  sendMessageValidation, 
+  sendMessage
+);
 router.get('/conversations/:id/messages', isConversationParticipant, getMessages);
 router.put('/messages/:id', isConversationParticipant, canEditMessage, updateMessageValidation, updateMessage);
 router.delete('/messages/:id', isConversationParticipant, canEditMessage, deleteMessage);
