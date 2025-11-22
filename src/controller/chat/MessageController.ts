@@ -3,6 +3,7 @@ import { validationResult } from "express-validator";
 import { asyncMiddleware } from "../../middleware/asyncMiddleware";
 import { prisma } from "../../utils/db";
 import { MessageType } from "@prisma/client";
+import { sanitizeMessageContent } from "../../utils/contentSanitizer";
 
 export const sendMessage = asyncMiddleware(async (req: Request, res: Response) => {
   try {
@@ -42,12 +43,33 @@ export const sendMessage = asyncMiddleware(async (req: Request, res: Response) =
       }
     }
 
+    // Basic attachment validation
+    if (attachmentUrl) {
+      try {
+        const url = new URL(attachmentUrl);
+        // Only allow HTTPS URLs for security
+        if (url.protocol !== 'https:') {
+          return res.status(400).json({ message: "Only HTTPS attachment URLs are allowed" });
+        }
+        
+        // Basic domain validation (allow Cloudinary)
+        if (!url.hostname.includes('cloudinary.com')) {
+          return res.status(400).json({ message: "Only Cloudinary attachments are allowed" });
+        }
+      } catch (error) {
+        return res.status(400).json({ message: "Invalid attachment URL format" });
+      }
+    }
+
+    // Sanitize content before saving
+    const sanitizedContent = sanitizeMessageContent(content);
+
     // Create message
     const message = await prisma.message.create({
       data: {
         conversationId,
         senderId: userId,
-        content,
+        content: sanitizedContent,
         messageType,
         replyToId,
         attachmentUrl,
@@ -233,13 +255,16 @@ export const updateMessage = asyncMiddleware(async (req: Request, res: Response)
       return res.status(404).json({ message: "Message not found or you don't have permission to edit it" });
     }
 
+    // Sanitize content before updating
+    const sanitizedContent = sanitizeMessageContent(content);
+
     // Update message
     const updatedMessage = await prisma.message.update({
       where: {
         id: messageId,
       },
       data: {
-        content,
+        content: sanitizedContent,
         isEdited: true,
         editedAt: new Date(),
       },
