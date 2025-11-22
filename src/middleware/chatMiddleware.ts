@@ -82,8 +82,9 @@ export const canManageConversation = asyncMiddleware(async (
 
     const isCreator = conversation?.createdBy === userId;
     const isAdmin = participant.role === ParticipantRole.ADMIN;
+    const isModerator = participant.role === ParticipantRole.MODERATOR;
 
-    if (!isCreator && !isAdmin) {
+    if (!isCreator && !isAdmin && !isModerator) {
       return res.status(403).json({ message: "Insufficient permissions to manage conversation" });
     }
 
