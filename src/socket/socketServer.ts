@@ -1,23 +1,25 @@
 import { Server as HTTPServer } from 'http';
-import { Server as SocketIOServer, Socket } from 'socket.io';
-import jwt from 'jsonwebtoken';
+import { Server as SocketIOServer } from 'socket.io';
+import * as jwt from 'jsonwebtoken';
 import { prisma } from '../utils/db';
 import { sanitizeMessageContent } from '../utils/contentSanitizer';
+import { initializeEnhancedPresence, handleEnhancedConnection } from './handlers/connectionHandler';
+import './types';
 
-// Extend Socket interface to include user data
-declare module 'socket.io' {
-  interface Socket {
-    user?: {
-      id: string;
-      firstName: string;
-      lastName: string;
-      email: string;
-      profilePicture?: string;
-    };
+// Environment validation
+function validateEnvironment() {
+  const required = ['ACCESS_TOKEN'];
+  const missing = required.filter(key => !process.env[key]);
+  
+  if (missing.length > 0) {
+    throw new Error(`Missing required environment variables: ${missing.join(', ')}`);
   }
 }
 
 export function initializeSocket(server: HTTPServer) {
+  // Validate environment variables
+  validateEnvironment();
+  
   const io = new SocketIOServer(server, {
     cors: {
       origin: process.env.FRONTEND_URL || "http://localhost:3000",
@@ -25,6 +27,12 @@ export function initializeSocket(server: HTTPServer) {
       credentials: true
     }
   });
+
+  // Initialize enhanced presence manager
+  initializeEnhancedPresence(io);
+
+  // Basic rate limiting for socket events
+  const messageCooldowns = new Map<string, number>();
 
   // Authentication middleware
   io.use(async (socket, next) => {
@@ -66,81 +74,35 @@ export function initializeSocket(server: HTTPServer) {
     }
   });
 
-  // Connection handler
+  // Enhanced connection handler with presence management
   io.on('connection', (socket) => {
     console.log(`User connected: ${socket.user?.firstName} ${socket.user?.lastName} (${socket.id})`);
 
     // Join user to their personal room
     socket.join(`user:${socket.user?.id}`);
 
-    // Join conversation handler
-    socket.on('join_conversation', async (data) => {
-      try {
-        const { conversationId } = data;
-        const userId = socket.user?.id;
+    // Use enhanced connection handler for presence features
+    handleEnhancedConnection(io, socket);
 
-        if (!userId) {
-          socket.emit('error', { message: 'User not authenticated' });
-          return;
-        }
-
-        // Verify user is participant
-        const participant = await prisma.conversationParticipant.findFirst({
-          where: {
-            conversationId,
-            userId
-          }
-        });
-
-        if (!participant) {
-          socket.emit('error', { message: 'Not a participant in this conversation' });
-          return;
-        }
-
-        // Join conversation room
-        const roomName = `conversation:${conversationId}`;
-        socket.join(roomName);
-
-        // Get recent messages
-        const recentMessages = await prisma.message.findMany({
-          where: {
-            conversationId
-          },
-          include: {
-            sender: {
-              select: {
-                id: true,
-                firstName: true,
-                lastName: true,
-                profilePicture: true
-              }
-            }
-          },
-          orderBy: {
-            createdAt: 'desc'
-          },
-          take: 50
-        });
-
-        // Send conversation data
-        socket.emit('conversation_joined', {
-          conversationId,
-          messages: recentMessages.reverse()
-        });
-
-        console.log(`User ${socket.user?.firstName} joined conversation ${conversationId}`);
-
-      } catch (error) {
-        console.error('Error joining conversation:', error);
-        socket.emit('error', { message: 'Failed to join conversation' });
-      }
-    });
-
-    // Send message handler
+    // Keep the message handler for now (can be moved to enhanced handler later)
     socket.on('send_message', async (data) => {
       try {
         const { conversationId, content, messageType = 'TEXT', replyToId, attachmentUrl, attachmentType } = data;
         const userId = socket.user?.id;
+
+        // Basic rate limiting
+        if (!userId) {
+          return socket.emit('error', { message: 'User not authenticated' });
+        }
+
+        const now = Date.now();
+        const lastMessage = messageCooldowns.get(userId);
+        
+        if (lastMessage && now - lastMessage < 3000) {
+          return socket.emit('error', { message: 'Please wait 3 seconds between messages' });
+        }
+        
+        messageCooldowns.set(userId, now);
 
         if (!userId) {
           socket.emit('error', { message: 'User not authenticated' });
@@ -276,31 +238,6 @@ export function initializeSocket(server: HTTPServer) {
       }
     });
 
-    // Leave conversation handler
-    socket.on('leave_conversation', async (data) => {
-      try {
-        const { conversationId } = data;
-        const roomName = `conversation:${conversationId}`;
-        
-        socket.leave(roomName);
-
-        // Notify others
-        socket.to(roomName).emit('user_left', {
-          userId: socket.user?.id,
-          firstName: socket.user?.firstName,
-          lastName: socket.user?.lastName,
-          timestamp: new Date().toISOString()
-        });
-
-        socket.emit('conversation_left', { conversationId });
-        console.log(`User ${socket.user?.firstName} left conversation ${conversationId}`);
-
-      } catch (error) {
-        console.error('Error leaving conversation:', error);
-        socket.emit('error', { message: 'Failed to leave conversation' });
-      }
-    });
-
     // Disconnect handler
     socket.on('disconnect', (reason) => {
       console.log(`User disconnected: ${socket.user?.firstName} (${socket.id}) - Reason: ${reason}`);
@@ -309,12 +246,6 @@ export function initializeSocket(server: HTTPServer) {
     // Error handler
     socket.on('error', (error) => {
       console.error('Socket error:', error);
-    });
-
-    // Send initial connection status
-    socket.emit('connected', {
-      userId: socket.user?.id,
-      timestamp: new Date().toISOString()
     });
   });
 
