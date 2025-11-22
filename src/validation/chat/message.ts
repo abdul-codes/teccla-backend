@@ -17,12 +17,25 @@ export const sendMessageValidation = [
     .withMessage('Reply to ID must be string'),
   body('attachmentUrl')
     .optional()
-    .isURL()
-    .withMessage('Attachment URL must be valid'),
+    .isURL({ protocols: ['http', 'https'] })
+    .withMessage('Attachment URL must be valid HTTP/HTTPS URL'),
   body('attachmentType')
     .optional()
     .isIn(['IMAGE', 'DOCUMENT', 'VIDEO', 'AUDIO'])
     .withMessage('Invalid attachment type'),
+  // Custom validation for attachment consistency
+  body().custom((_value, { req }) => {
+    const hasAttachmentUrl = !!req.body.attachmentUrl;
+    const hasAttachmentType = !!req.body.attachmentType;
+    
+    if (hasAttachmentUrl && !hasAttachmentType) {
+      throw new Error('Attachment type is required when attachment URL is provided');
+    }
+    if (!hasAttachmentUrl && hasAttachmentType) {
+      throw new Error('Attachment URL is required when attachment type is provided');
+    }
+    return true;
+  }),
 ];
 
 export const updateMessageValidation = [
