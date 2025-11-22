@@ -1,4 +1,5 @@
 import express, { Request, Response } from "express";
+import { createServer } from "http";
 import cors from "cors";
 import "dotenv/config";
 import compression from "compression";
@@ -8,8 +9,10 @@ import userRoutes from "./routes/UserRoutes";
 import userProfileRoutes from "./routes/UserProfileRoutes";
 import projectRoutes from "./routes/ProjectRoutes";
 import chatRoutes from "./routes/chat/ChatRoutes";
+import { initializeSocket } from "./socket/socketServer";
 
 const app = express();
+const server = createServer(app);
 
 app.use(compression());
 app.use(express.json());
@@ -28,6 +31,10 @@ app.get("/api/test", async (_req: Request, res: Response) => {
 });
 
 const PORT = process.env.PORT || 7000;
-app.listen(PORT, () => {
-  console.log(`Server running on localhost:${PORT}`);
+
+// Initialize Socket.io
+initializeSocket(server);
+
+server.listen(PORT, () => {
+  console.log(`Server running with Socket.io on localhost:${PORT}`);
 });
