@@ -10,10 +10,10 @@ export const UserProfileUpdateSchema = z.object({
     city: z.string().optional(), 
     state: z.string().optional(),
     country: z.string().optional(),
-    profileImage: z.string()
+    profilePicture: z.string()
     .refine(
       (val) => !val || val.startsWith('data:image/'), 
-      "Profile image must be a valid data URI for an image"
+      "Profile picture must be a valid data URI for an image"
     )
     .optional(),
 });

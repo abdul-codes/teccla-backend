@@ -54,6 +54,35 @@ const userProfileSelect = {
   updatedAt: true, // Added to track when profile was last updated
 };
 
+export const getUserProfile = asyncMiddleware(async (req: Request, res: Response) => {
+  const userId = req.user?.id; // From auth middleware
+  if (!userId) {
+    return res.status(401).json({ message: "Unauthorized" });
+  }
+
+  try {
+    const user = await prisma.user.findUnique({
+      where: { id: userId },
+      select: userProfileSelect
+    });
+
+    if (!user) {
+      return res.status(404).json({ message: "User not found" });
+    }
+
+    res.status(200).json({
+      message: "Profile fetched successfully",
+      user,
+    });
+  } catch (error) {
+    console.error("Profile fetch error:", error);
+    res.status(500).json({
+      message: "Error fetching profile",
+      error: error instanceof Error ? error.message : "Unknown error",
+    });
+  }
+});
+
 export const updateUserProfile = asyncMiddleware(async (req: Request, res: Response) => {
   const userId = req.user?.id; // From auth middleware
   if (!userId) {
@@ -62,7 +91,12 @@ export const updateUserProfile = asyncMiddleware(async (req: Request, res: Respo
 
   const validationResult = UserProfileUpdateSchema.safeParse(req.body)
   if (!validationResult.success) {
-    return res.status(400).json({ message: "Invalid Input Data", errors: validationResult.error })
+    console.log('Validation failed:', validationResult.error.format());
+    console.log('Request body:', req.body);
+    return res.status(400).json({ 
+      message: "Invalid Input Data", 
+      errors: validationResult.error.format() 
+    })
   }
 
   const {
