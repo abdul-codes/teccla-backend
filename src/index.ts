@@ -27,8 +27,8 @@ app.use(cors(corsOptions));
 app.use(limiter);
 
 app.use("/api/auth", authRoutes);
+app.use("/api/users/profile", userProfileRoutes); // Must be BEFORE /api/users
 app.use("/api/users", userRoutes);
-app.use("/api/users/profile", userProfileRoutes);
 app.use("/api/projects", projectRoutes);
 app.use("/api/chat", chatRoutes);
 
