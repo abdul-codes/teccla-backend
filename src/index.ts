@@ -28,7 +28,7 @@ app.use(limiter);
 
 app.use("/api/auth", authRoutes);
 app.use("/api/users", userRoutes);
-app.use("/api/profile", userProfileRoutes);
+app.use("/api/users/profile", userProfileRoutes);
 app.use("/api/projects", projectRoutes);
 app.use("/api/chat", chatRoutes);
 
