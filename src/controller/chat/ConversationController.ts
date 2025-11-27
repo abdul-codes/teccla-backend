@@ -130,9 +130,22 @@ export const getUserConversations = asyncMiddleware(async (req: Request, res: Re
           }
         }
       },
-      include: {
+      select: {
+        id: true,
+        name: true,
+        description: true,
+        isGroup: true,
+        avatar: true,
+        createdAt: true,
+        updatedAt: true,
+        createdBy: true,
         participants: {
-          include: {
+          select: {
+            id: true,
+            role: true,
+            joinedAt: true,
+            lastReadAt: true,
+            isMuted: true,
             user: {
               select: {
                 id: true,
@@ -140,21 +153,6 @@ export const getUserConversations = asyncMiddleware(async (req: Request, res: Re
                 lastName: true,
                 email: true,
                 profilePicture: true,
-              }
-            }
-          }
-        },
-        messages: {
-          orderBy: {
-            createdAt: 'desc'
-          },
-          take: 1,
-          include: {
-            sender: {
-              select: {
-                id: true,
-                firstName: true,
-                lastName: true,
               }
             }
           }
@@ -182,6 +180,44 @@ export const getUserConversations = asyncMiddleware(async (req: Request, res: Re
       take: Number(limit),
     });
 
+    // Get latest messages for all conversations (batch query)
+    const conversationIds = conversations.map(c => c.id);
+    const latestMessages = conversationIds.length > 0 ? await prisma.message.findMany({
+      where: {
+        conversationId: { in: conversationIds }
+      },
+      select: {
+        id: true,
+        conversationId: true,
+        content: true,
+        messageType: true,
+        createdAt: true,
+        sender: {
+          select: {
+            id: true,
+            firstName: true,
+            lastName: true,
+          }
+        }
+      },
+      orderBy: { createdAt: 'desc' },
+      take: conversationIds.length
+    }) : [];
+
+    // Map latest messages to conversations
+    const messageMap = new Map();
+    latestMessages.forEach(msg => {
+      if (!messageMap.has(msg.conversationId) || 
+          msg.createdAt > messageMap.get(msg.conversationId).createdAt) {
+        messageMap.set(msg.conversationId, msg);
+      }
+    });
+
+    const conversationsWithMessages = conversations.map(conv => ({
+      ...conv,
+      messages: messageMap.get(conv.id) ? [messageMap.get(conv.id)] : []
+    }));
+
     const total = await prisma.conversation.count({
       where: {
         participants: {
@@ -193,7 +229,7 @@ export const getUserConversations = asyncMiddleware(async (req: Request, res: Re
     });
 
     res.json({
-      conversations,
+      conversations: conversationsWithMessages,
       pagination: {
         page: Number(page),
         limit: Number(limit),
