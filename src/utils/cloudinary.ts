@@ -2,7 +2,7 @@ import { v2 as cloudinary } from 'cloudinary';
 import { Readable } from 'stream';
 
 // Configure Cloudinary using the URL from environment variables
-cloudinary.config();
+cloudinary.config(true);
 
 export const uploadToCloudinary = (file: Express.Multer.File, folder: string): Promise<any> => {
   return new Promise((resolve, reject) => {
