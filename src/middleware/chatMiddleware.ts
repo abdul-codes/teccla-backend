@@ -2,6 +2,7 @@ import { NextFunction, Request, Response } from "express";
 import { asyncMiddleware } from "./asyncMiddleware";
 import { prisma } from "../utils/db";
 import { ParticipantRole } from "@prisma/client";
+import { getCachedParticipant, setCachedParticipant } from "../utils/simpleCache";
 
 declare global {
   namespace Express {
@@ -32,22 +33,33 @@ export const isConversationParticipant = asyncMiddleware(async (
       return res.status(401).json({ message: "User not authenticated" });
     }
 
-    const participant = await prisma.conversationParticipant.findFirst({
-      where: {
-        conversationId,
-        userId,
-      },
-      include: {
-        conversation: {
-          select: {
-            id: true,
-            name: true,
-            isGroup: true,
-            createdBy: true,
+    // Try cache first
+    let participant = await getCachedParticipant(userId, conversationId);
+
+    if (!participant) {
+      // Query database if not in cache
+      participant = await prisma.conversationParticipant.findFirst({
+        where: {
+          conversationId,
+          userId,
+        },
+        include: {
+          conversation: {
+            select: {
+              id: true,
+              name: true,
+              isGroup: true,
+              createdBy: true,
+            }
           }
         }
+      });
+
+      // Cache the result
+      if (participant) {
+        await setCachedParticipant(userId, conversationId, participant);
       }
-    });
+    }
 
     if (!participant) {
       return res.status(403).json({ message: "Not a participant in this conversation" });
