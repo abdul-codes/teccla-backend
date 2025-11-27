@@ -1,7 +1,7 @@
 import { Router } from 'express';
 import { authenticateUser } from '../../middleware/authMIddleware';
 import { isConversationParticipant, canManageConversation, canEditMessage } from '../../middleware/chatMiddleware';
-import { messageRateLimitMiddleware, messageRateLimiter, conversationMessageLimiter } from '../../middleware/messageRateLimitMiddleware';
+import { chatRateLimiter } from '../../middleware/simpleChatRateLimit';
 import { createConversationValidation, addParticipantValidation, updateConversationValidation } from '../../validation/chat/conversation';
 import { sendMessageValidation, updateMessageValidation, markMessagesReadValidation } from '../../validation/chat/message';
 
@@ -29,6 +29,7 @@ const router = Router();
 
 // All chat routes require authentication
 router.use(authenticateUser);
+router.use(chatRateLimiter);
 
 // Conversation routes
 router.post('/conversations', createConversationValidation, createConversation);
@@ -41,9 +42,7 @@ router.delete('/conversations/:id/leave', isConversationParticipant, leaveConver
 
 // Message routes
 router.post('/messages', 
-  messageRateLimitMiddleware,
-  messageRateLimiter,
-  conversationMessageLimiter,
+  chatRateLimiter,
   sendMessageValidation, 
   sendMessage
 );
