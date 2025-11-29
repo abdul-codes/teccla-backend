@@ -14,7 +14,7 @@ export const uploadAssets = async (req: Request, res: Response) => {
     const assets = [];
 
     for (const file of files) {
-      const result = await uploadToCloudinary(file, projectId);
+      const result = await uploadToCloudinary(file, `real_estate/${projectId}`);
       
       const asset = await prisma.asset.create({
         data: {
