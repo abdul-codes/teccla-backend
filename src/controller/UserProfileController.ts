@@ -1,41 +1,10 @@
 import { Request, Response } from "express";
 import { prisma } from "../utils/db";
-import { v2 as cloudinary } from "cloudinary";
+import { uploadBase64ToCloudinary } from "../utils/cloudinary";
 import { asyncMiddleware } from "../middleware/asyncMiddleware";
 import { UserProfileUpdateSchema } from "../validation/userProfile";
 
-// Configure Cloudinary
-cloudinary.config({
-  cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
-  api_key: process.env.CLOUDINARY_API_KEY,
-  api_secret: process.env.CLOUDINARY_API_SECRET,
-});
 
-const uploadImageToCloudinary = async (imageData: string) => {
-  try {
-
-    if (!imageData.startsWith("data:image/")) {
-      throw new Error("Invalid file type. Only images are allowed.");
-    }
-
-    // Validate image size (Option 2)
-    const base64Length = imageData.length;
-    const fileSizeBytes = (base64Length * 0.75) - (imageData.endsWith("==") ? 2 : imageData.endsWith("=") ? 1 : 0);
-    const maxSizeBytes = 5 * 1024 * 1024; // 5MB
-    if (fileSizeBytes > maxSizeBytes) {
-      throw new Error("Image size exceeds 5MB limit.");
-    }
-
-    const result = await cloudinary.uploader.upload(imageData, {
-      folder: "profile_pictures",
-      resource_type: "image",
-    });
-    return result.secure_url;
-  } catch (error) {
-    console.error("Cloudinary upload error:", error);
-    throw new Error("Failed to upload profile image");
-  }
-};
 
 const userProfileSelect = {
   id: true,
@@ -147,7 +116,11 @@ export const updateUserProfile = asyncMiddleware(async (req: Request, res: Respo
   // Handle profile image upload if provided
   if (profilePicture) {
     try {
-      updateData.profilePicture = await uploadImageToCloudinary(profilePicture);
+      if (profilePicture.startsWith("data:image/")) {
+        updateData.profilePicture = await uploadBase64ToCloudinary(profilePicture);
+      } else {
+        updateData.profilePicture = profilePicture;
+      }
     } catch (error) {
       return res.status(500).json({
         message: error instanceof Error ? error.message : "Failed to upload profile Picture"
