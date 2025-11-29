@@ -140,7 +140,7 @@ export const createProject = asyncMiddleware(
         for (const file of fileArray) {
           fileUploadPromises.push(
             (async () => {
-              const result = await uploadToCloudinary(file, "projects");
+              const result = await uploadToCloudinary(file, "real_estate/projects");
               uploadedCloudinaryPublicIds.push(result.public_id); // Track for rollback
 
               await prisma.asset.create({
@@ -293,7 +293,7 @@ export const updateProject = asyncMiddleware(
             for (const file of fileArray) {
               fileUploadPromises.push(
                 (async () => {
-                  const result = await uploadToCloudinary(file, "projects");
+                  const result = await uploadToCloudinary(file, "real_estate/projects");
                   await tx.asset.create({
                     data: {
                       url: result.secure_url,
