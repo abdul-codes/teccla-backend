@@ -205,7 +205,7 @@ export const loginUser = asyncMiddleware(
         data: {
           token: refreshToken,
           userId: user.id,
-          expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000), // 7 days expiry
+          expiresAt: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000), // 30 days expiry
         },
       });
 
@@ -214,7 +214,7 @@ export const loginUser = asyncMiddleware(
         httpOnly: true,
         secure: process.env.NODE_ENV === "production", // Use secure cookies in production
         sameSite: "strict", // Prevent CSRF
-        maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days (match refresh token expiry if possible)
+        maxAge: 30 * 24 * 60 * 60 * 1000, // 30 days (match refresh token expiry)
       });
 
       // Send response with user details and access token
