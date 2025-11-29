@@ -11,10 +11,13 @@ export const UserProfileUpdateSchema = z.object({
     state: z.string().optional(),
     country: z.string().optional(),
     profilePicture: z.string()
-    .refine(
-      (val) => !val || val.startsWith('data:image/'), 
-      "Profile picture must be a valid data URI for an image"
-    )
+    .refine((val) => {
+      if (!val) return true; // Allow empty/null
+      const isUrl = z.string().url().safeParse(val).success;
+      const isDataUri = /^data:image\/(?:png|jpg|jpeg|gif|webp);base64,/.test(val);
+      return isUrl || isDataUri;
+    }, "Must be a valid URL or image Data URI")
+    .nullable()
     .optional(),
 });
   
