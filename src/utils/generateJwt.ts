@@ -10,16 +10,16 @@ if (!ACCESS_TOKEN || !REFRESH_TOKEN) {
   throw new Error('JWT secrets not configured in environment variables');
 }
 
-// Generate Access Token
+// Generate Access Token (1 hour expiry for better UX)
 export const generateAccessToken = (userId: string, role: string) => {
   return jwt.sign({ id: userId, role }, ACCESS_TOKEN, {
-    expiresIn: '15m'
+    expiresIn: '1h'
   });
 };
 
-// Generate Refresh Token 
+// Generate Refresh Token (30 days expiry)
 export const generateRefreshToken = (userId: string) => {
   return jwt.sign({ id: userId }, REFRESH_TOKEN, {
-    expiresIn: '7d'
+    expiresIn: '30d'
   });
 };
