@@ -17,22 +17,22 @@ import { uploadProjectFiles } from "../middleware/fileUploadMiddleware";
 
 const router = Router();
 
-router.get("/projects", authenticateUser, getAllProjects);
-router.get("/projects/:id", authenticateUser, getProjectById);
+router.get("/", authenticateUser, getAllProjects);
+router.get("/:id", authenticateUser, getProjectById);
 router.post(
-  "/create-project",
+  "/",
   authenticateUser,
   uploadProjectFiles,
   validateSchema(createProjectSchema),
   createProject,
 );
 router.patch(
-  "/projects/:id",
+  "/:id",
   authenticateUser,
   uploadProjectFiles,
   validateSchema(updateProjectSchema),
   updateProject,
 );
-router.delete("/projects/:id", authenticateUser, deleteProject);
+router.delete("/:id", authenticateUser, deleteProject);
 
 export default router;
