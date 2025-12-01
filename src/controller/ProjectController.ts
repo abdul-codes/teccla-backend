@@ -90,15 +90,13 @@ export const getAllProjects = asyncMiddleware(
   },
 );
 
-import { deleteFromCloudinary, uploadToCloudinary } from "../utils/cloudinary";
+import { getStorageProvider } from "../storage";
 import { AssetType, Project } from "@prisma/client";
-
-// ... (keep getAllProjects)
 
 export const createProject = asyncMiddleware(
   async (req: Request, res: Response) => {
     let project: Project | null = null;
-    const uploadedCloudinaryPublicIds: string[] = [];
+    const uploadedFileIds: string[] = [];
 
     try {
       const validatedData: CreateProjectInput = req.body;
@@ -133,25 +131,31 @@ export const createProject = asyncMiddleware(
         }) || {};
       const fileUploadPromises: Promise<void>[] = [];
 
+      // Get storage provider (local, R2, etc.)
+      const storage = getStorageProvider();
+
       const processFiles = (
         fileArray: Express.Multer.File[],
         assetType: AssetType,
       ) => {
+        const folder = assetType === AssetType.IMAGE ? 'projects/images' : 'projects/documents';
+        
         for (const file of fileArray) {
           fileUploadPromises.push(
             (async () => {
-              const result = await uploadToCloudinary(file, "real_estate/projects");
-              uploadedCloudinaryPublicIds.push(result.public_id); // Track for rollback
+              // Upload using storage abstraction
+              const result = await storage.save(file, folder);
+              uploadedFileIds.push(result.publicId); // Track for rollback
 
               await prisma.asset.create({
                 data: {
-                  url: result.secure_url,
-                  publicId: result.public_id,
+                  url: result.url,
+                  publicId: result.publicId,
                   assetType: assetType,
                   format: result.format,
                   bytes: result.bytes.toString(),
-                  width: result.width.toString(),
-                  height: result.height.toString(),
+                  width: result.width ? result.width.toString() : "0",
+                  height: result.height ? result.height.toString() : "0",
                   uploadedById: req.user!.id,
                   projectId: project!.id,
                 },
@@ -183,16 +187,24 @@ export const createProject = asyncMiddleware(
       console.error("Project creation error:", error);
 
       // Rollback logic
+      const storage = getStorageProvider();
       if (project) {
         await prisma.project.delete({ where: { id: project.id } });
       }
-      for (const publicId of uploadedCloudinaryPublicIds) {
-        await deleteFromCloudinary(publicId);
+      for (const publicId of uploadedFileIds) {
+        try {
+          await storage.delete(publicId);
+        } catch (err) {
+          console.error(`Failed to delete file during rollback: ${publicId}`, err);
+        }
       }
 
       return res.status(500).json({
         success: false,
         message: "Internal server error. Rolled back project creation.",
+        error: error instanceof Error ? error.message : "Unknown error",
+        details: error, // Include the raw error object to see what it is
+        stack: error instanceof Error ? error.stack : undefined,
       });
     }
   },
@@ -264,6 +276,7 @@ export const updateProject = asyncMiddleware(
         }
 
         // Handle asset deletions if specified
+        const storage = getStorageProvider();
         if (validatedData.deleteAssets && Array.isArray(validatedData.deleteAssets)) {
           const assetsToDelete = await tx.asset.findMany({
             where: {
@@ -273,7 +286,11 @@ export const updateProject = asyncMiddleware(
           });
 
           for (const asset of assetsToDelete) {
-            await deleteFromCloudinary(asset.publicId);
+            try {
+              await storage.delete(asset.publicId);
+            } catch (err) {
+              console.error(`Failed to delete asset ${asset.publicId}:`, err);
+            }
             await tx.asset.delete({ where: { id: asset.id } });
           }
         }
@@ -285,24 +302,28 @@ export const updateProject = asyncMiddleware(
 
         if (files.images?.length || files.files?.length) {
           const fileUploadPromises: Promise<void>[] = [];
+          const storage = getStorageProvider();
 
           const processFiles = (
             fileArray: Express.Multer.File[],
             assetType: AssetType,
           ) => {
+            const folder = assetType === AssetType.IMAGE ? 'projects/images' : 'projects/documents';
+            
             for (const file of fileArray) {
               fileUploadPromises.push(
                 (async () => {
-                  const result = await uploadToCloudinary(file, "real_estate/projects");
+                  const result = await storage.save(file, folder);
+
                   await tx.asset.create({
                     data: {
-                      url: result.secure_url,
-                      publicId: result.public_id,
+                      url: result.url,
+                      publicId: result.publicId,
                       assetType: assetType,
                       format: result.format,
                       bytes: result.bytes.toString(),
-                      width: result.width.toString(),
-                      height: result.height.toString(),
+                      width: result.width ? result.width.toString() : "0",
+                      height: result.height ? result.height.toString() : "0",
                       uploadedById: req.user!.id,
                       projectId: id,
                     },
@@ -406,14 +427,15 @@ export const deleteProject = asyncMiddleware(
         });
       }
 
-      // Clean up Cloudinary assets first
-      const cloudinaryDeletePromises = projectWithAssets.asset.map(asset => 
-        deleteFromCloudinary(asset.publicId).catch(err => 
+      // Clean up storage assets first
+      const storage = getStorageProvider();
+      const deletePromises = projectWithAssets.asset.map(asset => 
+        storage.delete(asset.publicId).catch(err => 
           console.error(`Failed to delete asset ${asset.publicId}:`, err)
         )
       );
 
-      await Promise.all(cloudinaryDeletePromises);
+      await Promise.all(deletePromises);
 
       // Delete project (cascade will handle DB assets)
       await prisma.project.delete({ where: { id } });
