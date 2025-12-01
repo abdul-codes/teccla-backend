@@ -76,7 +76,7 @@ export class LocalStorage implements StorageProvider {
         await fs.promises.unlink(filePath);
         console.log(`File deleted: ${publicId}`);
       } else {
-        console.log(`Warning: File not found (already deleted?): ${publicId}`);
+        console.log(` File not found (already deleted?): ${publicId}`);
       }
     } catch (error) {
       console.error(`Failed to delete file ${publicId}:`, error);
