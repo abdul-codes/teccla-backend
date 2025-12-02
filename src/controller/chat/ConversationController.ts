@@ -14,41 +14,99 @@ export const createConversation = asyncMiddleware(async (req: Request, res: Resp
     const { name, description, isGroup, participantIds } = req.body;
     const userId = req.user?.id;
 
+    console.log(' CREATE CONVERSATION');
+    console.log('Request body:', { name, description, isGroup, participantIds });
+    console.log('Current user:', userId);
+
     if (!userId) {
       return res.status(401).json({ message: "User not authenticated" });
     }
 
-    // For direct messages, ensure only 2 participants
     if (!isGroup && participantIds.length > 1) {
       return res.status(400).json({ message: "Direct messages can only have 2 participants" });
     }
 
-    // Check if direct message already exists
     if (!isGroup && participantIds.length === 1) {
-      const existingConversation = await prisma.conversation.findFirst({
+      const otherUserId = participantIds[0];
+      console.log('Checking for existing 1-on-1 conversation between:', userId, 'and', otherUserId);
+      
+      // More efficient only get conversations where BOTH users are participants
+      const existingConversations = await prisma.conversation.findMany({
         where: {
           isGroup: false,
-          participants: {
-            every: {
-              userId: { in: [userId, participantIds[0]] }
+          AND: [
+            {
+              participants: {
+                some: {
+                  userId: userId
+                }
+              }
+            },
+            {
+              participants: {
+                some: {
+                  userId: otherUserId
+                }
+              }
             }
-          }
+          ]
         },
         include: {
           participants: {
-            where: {
-              userId: { in: [userId, participantIds[0]] }
+            select: {
+              userId: true,
             }
           }
         }
       });
 
-      if (existingConversation && existingConversation.participants.length === 2) {
+      console.log('Found', existingConversations.length, 'potential matching conversations');
+
+      // Verify it's exactly these two users (no more, no less)
+      const existingConversation = existingConversations.find(conv => {
+        const participantUserIds = conv.participants.map(p => p.userId);
+        const matches = participantUserIds.length === 2;
+        if (matches) {
+          console.log('Found existing conversation:', conv.id, 'with participants:', participantUserIds);
+        }
+        return matches;
+      });
+
+      if (existingConversation) {
+        console.log('Returning existing conversation:', existingConversation.id);
+        const fullConversation = await prisma.conversation.findUnique({
+          where: { id: existingConversation.id },
+          include: {
+            participants: {
+              include: {
+                user: {
+                  select: {
+                    id: true,
+                    firstName: true,
+                    lastName: true,
+                    email: true,
+                    profilePicture: true,
+                  }
+                }
+              }
+            },
+            creator: {
+              select: {
+                id: true,
+                firstName: true,
+                lastName: true,
+                email: true,
+              }
+            }
+          }
+        });
+
         return res.status(200).json({
           message: "Direct message already exists",
-          conversation: existingConversation
+          conversation: fullConversation
         });
       }
+      console.log('No existing conversation found, creating new one');
     }
 
     // Create conversation
@@ -142,6 +200,7 @@ export const getUserConversations = asyncMiddleware(async (req: Request, res: Re
         participants: {
           select: {
             id: true,
+            userId: true,
             role: true,
             joinedAt: true,
             lastReadAt: true,
@@ -248,7 +307,7 @@ export const getUserConversations = asyncMiddleware(async (req: Request, res: Re
 
 export const getConversationDetails = asyncMiddleware(async (req: Request, res: Response) => {
   try {
-    const { conversationId } = req.params;
+    const conversationId = req.params.id;
     const participant = req.participant;
 
     if (!participant) {
