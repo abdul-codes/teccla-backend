@@ -1,6 +1,6 @@
 import { Router } from 'express';
 import { authenticateUser } from '../../middleware/authMIddleware';
-import { isConversationParticipant, canManageConversation, canEditMessage } from '../../middleware/chatMiddleware';
+import { isConversationParticipant, isConversationParticipantFromBody, canManageConversation, canEditMessage } from '../../middleware/chatMiddleware';
 import { chatRateLimiter } from '../../middleware/simpleChatRateLimit';
 import { createConversationValidation, addParticipantValidation, updateConversationValidation } from '../../validation/chat/conversation';
 import { sendMessageValidation, updateMessageValidation, markMessagesReadValidation } from '../../validation/chat/message';
@@ -43,13 +43,14 @@ router.delete('/conversations/:id/leave', isConversationParticipant, leaveConver
 // Message routes
 router.post('/messages', 
   chatRateLimiter,
-  sendMessageValidation, 
+  sendMessageValidation,
+  isConversationParticipantFromBody,
   sendMessage
 );
 router.get('/conversations/:id/messages', isConversationParticipant, getMessages);
 router.put('/messages/:id', isConversationParticipant, canEditMessage, updateMessageValidation, updateMessage);
 router.delete('/messages/:id', isConversationParticipant, canEditMessage, deleteMessage);
-router.put('/messages/read', markMessagesReadValidation, markMessagesRead);
+router.put('/messages/read', isConversationParticipantFromBody, markMessagesReadValidation, markMessagesRead);
 router.get('/conversations/:id/unread', isConversationParticipant, getUnreadCount);
 
 export default router;
