@@ -1,16 +1,19 @@
-import * as DOMPurify from 'dompurify';
-
 // Simple Node.js compatible sanitization
 export function sanitizeContent(content: string): string {
   if (!content) return content;
   
-  // Basic sanitization - allow only safe formatting
-  const sanitized = DOMPurify.sanitize(content, {
-    ALLOWED_TAGS: ['b', 'i', 'em', 'strong', 'br', 'p'],
-    ALLOWED_ATTR: []
-  });
+  // Remove HTML tags and scripts
+  let sanitized = content
+    .replace(/<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>/gi, '')
+    .replace(/<[^>]+>/g, '')
+    .trim();
   
-  return sanitized.trim();
+  // Limit length
+  if (sanitized.length > 5000) {
+    sanitized = sanitized.substring(0, 5000);
+  }
+  
+  return sanitized;
 }
 
 export function sanitizeMessageContent(content: string): string {
