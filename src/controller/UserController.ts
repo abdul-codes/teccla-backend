@@ -263,3 +263,47 @@ export const getAllUsers = asyncMiddleware(
     }
   },
 );
+
+// Search users (authenticated users)
+export const searchUsers = asyncMiddleware(
+  async (req: Request, res: Response) => {
+    try {
+      const { query } = req.query;
+      const currentUserId = req.user?.id;
+
+      if (!query || typeof query !== 'string') {
+        return res.status(400).json({ message: "Search query is required" });
+      }
+
+      const users = await prisma.user.findMany({
+        where: {
+          AND: [
+            { id: { not: currentUserId } }, // Exclude current user
+            {
+              OR: [
+                { firstName: { contains: query, mode: 'insensitive' } },
+                { lastName: { contains: query, mode: 'insensitive' } },
+                { email: { contains: query, mode: 'insensitive' } },
+              ],
+            },
+          ],
+        },
+        select: {
+          id: true,
+          firstName: true,
+          lastName: true,
+          email: true,
+          profilePicture: true,
+          companyName: true,
+          companyRole: true,
+        },
+        take: 10, // Limit results
+      });
+
+      res.status(200).json({ users });
+    } catch (error) {
+      console.error("Search users error:", error);
+      res.status(500).json({ message: "Internal server error" });
+    }
+  },
+);
