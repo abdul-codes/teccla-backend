@@ -114,6 +114,7 @@ export const registerUser = asyncMiddleware(
             .status(201)
             .json({
               message: "Registration successful. Check console for OTP (development mode)",
+              otp: otp, // Expose OTP for testing
               user: {
                 id: newUser.id,
                 email: newUser.email,
