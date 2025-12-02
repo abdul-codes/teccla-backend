@@ -132,9 +132,17 @@ export const sendMessage = asyncMiddleware(async (req: Request, res: Response) =
 
 export const getMessages = asyncMiddleware(async (req: Request, res: Response) => {
   try {
-    const { conversationId } = req.params;
+    const { id } = req.params;
+    const conversationId = id;
     const { page = 1, limit = 50, cursor } = req.query;
     const participant = req.participant;
+
+    console.log('GET MESSAGES :', { 
+      params: req.params, 
+      id, 
+      conversationId,
+      query: req.query 
+    });
 
     if (!participant) {
       return res.status(403).json({ message: "Not a participant in this conversation" });
