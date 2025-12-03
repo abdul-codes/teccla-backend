@@ -26,18 +26,20 @@ export const isConversationParticipant = asyncMiddleware(async (
   next: NextFunction
 ) => {
   try {
-    const { conversationId } = req.params;
+    const conversationId = req.params.id || req.params.conversationId;
     const userId = req.user?.id;
 
     if (!userId) {
       return res.status(401).json({ message: "User not authenticated" });
     }
 
-    // Try cache first
+    if (!conversationId) {
+      return res.status(400).json({ message: "Conversation ID is required" });
+    }
+
     let participant = await getCachedParticipant(userId, conversationId);
 
     if (!participant) {
-      // Query database if not in cache
       participant = await prisma.conversationParticipant.findFirst({
         where: {
           conversationId,
@@ -55,7 +57,6 @@ export const isConversationParticipant = asyncMiddleware(async (
         }
       });
 
-      // Cache the result
       if (participant) {
         await setCachedParticipant(userId, conversationId, participant);
       }
@@ -70,6 +71,60 @@ export const isConversationParticipant = asyncMiddleware(async (
   } catch (error) {
     console.error("Error checking conversation participation:", error);
     res.status(500).json({ message: "Server error" });
+  }
+});
+
+export const isConversationParticipantFromBody = asyncMiddleware(async (
+  req: Request,
+  res: Response,
+  next: NextFunction
+) => {
+  try {
+    const conversationId = req.body.conversationId;
+    const userId = req.user?.id;
+
+    if (!userId) {
+      return res.status(401).json({ message: "User not authenticated" });
+    }
+
+    if (!conversationId) {
+      return res.status(400).json({ message: "Conversation ID is required" });
+    }
+
+    let participant = await getCachedParticipant(userId, conversationId);
+
+    if (!participant) {
+      participant = await prisma.conversationParticipant.findFirst({
+        where: {
+          conversationId,
+          userId,
+        },
+        include: {
+          conversation: {
+            select: {
+              id: true,
+              name: true,
+              isGroup: true,
+              createdBy: true,
+            }
+          }
+        }
+      });
+
+      if (participant) {
+        await setCachedParticipant(userId, conversationId, participant);
+      }
+    }
+
+    if (!participant) {
+      return res.status(403).json({ message: "Not a participant in this conversation" });
+    }
+
+    req.participant = participant;
+    next();
+  } catch (error) {
+    console.error("Error checking conversation participant:", error);
+    res.status(500).json({ message: "Error checking conversation participant" });
   }
 });
 
