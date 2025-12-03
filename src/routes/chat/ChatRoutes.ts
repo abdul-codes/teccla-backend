@@ -25,6 +25,10 @@ import {
   getUnreadCount,
 } from '../../controller/chat/MessageController';
 
+import { uploadChatAttachment as uploadChatAttachmentController } from '../../controller/chat/ChatUploadController';
+import { uploadChatAttachment as uploadChatAttachmentMiddleware } from '../../middleware/chatFileUploadMiddleware';
+
+
 const router = Router();
 
 // All chat routes require authentication
@@ -39,6 +43,10 @@ router.put('/conversations/:id', isConversationParticipant, canManageConversatio
 router.post('/conversations/:id/participants', isConversationParticipant, canManageConversation, addParticipantValidation, addParticipant);
 router.delete('/conversations/:id/participants/:userId', isConversationParticipant, canManageConversation, removeParticipant);
 router.delete('/conversations/:id/leave', isConversationParticipant, leaveConversation);
+
+// File upload route
+router.post('/upload', uploadChatAttachmentMiddleware, uploadChatAttachmentController);
+
 
 // Message routes
 router.post('/messages', 
