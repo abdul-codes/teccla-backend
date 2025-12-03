@@ -5,11 +5,24 @@ export const sendMessageValidation = [
     .isString()
     .withMessage('Conversation ID is required'),
   body('content')
-    .isLength({ min: 1, max: 4000 })
+    .custom((value, { req }) => {
+      // Content is optional if there's an attachment
+      if (!value || value.trim().length === 0) {
+        if (!req.body.attachmentUrl) {
+          throw new Error('Message content is required when no attachment is provided');
+        }
+        return true;
+      }
+      // If content exists, validate length
+      if (value.length > 4000) {
+        throw new Error('Message content must not exceed 4000 characters');
+      }
+      return true;
+    })
     .withMessage('Message content must be 1-4000 characters'),
   body('messageType')
     .optional()
-    .isIn(['TEXT', 'IMAGE', 'DOCUMENT', 'VIDEO', 'AUDIO'])
+    .isIn(['TEXT', 'IMAGE', 'DOCUMENT'])
     .withMessage('Invalid message type'),
   body('replyToId')
     .optional()
@@ -17,11 +30,19 @@ export const sendMessageValidation = [
     .withMessage('Reply to ID must be string'),
   body('attachmentUrl')
     .optional()
-    .isURL({ protocols: ['http', 'https'] })
+    .custom((value) => {
+      if (!value) return true;
+      // Allow http/https URLs including localhost for development
+      const urlPattern = /^https?:\/\/.+/;
+      if (!urlPattern.test(value)) {
+        throw new Error('Attachment URL must be a valid HTTP/HTTPS URL');
+      }
+      return true;
+    })
     .withMessage('Attachment URL must be valid HTTP/HTTPS URL'),
   body('attachmentType')
     .optional()
-    .isIn(['IMAGE', 'DOCUMENT', 'VIDEO', 'AUDIO'])
+    .isIn(['IMAGE', 'DOCUMENT'])
     .withMessage('Invalid attachment type'),
   // Custom validation for attachment consistency
   body().custom((_value, { req }) => {
