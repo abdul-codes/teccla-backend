@@ -9,6 +9,8 @@ export const sendMessage = asyncMiddleware(async (req: Request, res: Response) =
   try {
     const errors = validationResult(req);
     if (!errors.isEmpty()) {
+      console.log(' Message validation failed:', JSON.stringify(errors.array(), null, 2));
+      console.log(' Request body:', JSON.stringify(req.body, null, 2));
       return res.status(400).json({ errors: errors.array() });
     }
 
@@ -43,23 +45,6 @@ export const sendMessage = asyncMiddleware(async (req: Request, res: Response) =
       }
     }
 
-    // Basic attachment validation
-    if (attachmentUrl) {
-      try {
-        const url = new URL(attachmentUrl);
-        // Only allow HTTPS URLs for security
-        if (url.protocol !== 'https:') {
-          return res.status(400).json({ message: "Only HTTPS attachment URLs are allowed" });
-        }
-        
-        // Basic domain validation (allow Cloudinary)
-        if (!url.hostname.includes('cloudinary.com')) {
-          return res.status(400).json({ message: "Only Cloudinary attachments are allowed" });
-        }
-      } catch (error) {
-        return res.status(400).json({ message: "Invalid attachment URL format" });
-      }
-    }
 
     // Sanitize content before saving
     const sanitizedContent = sanitizeMessageContent(content);
