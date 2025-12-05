@@ -1,39 +1,25 @@
 import multer from "multer";
+import { Request } from "express";
+import { FileFilterCallback } from "multer";
+import { ALLOWED_FILE_TYPES, ALLOWED_IMAGE_TYPES, ALLOWED_DOCUMENT_TYPES } from "../shared/constants/fileTypes";
+import { FILE_SIZE_LIMITS } from "../shared/constants/fileLimits";
 
 // Configure multer for memory storage
 const storage = multer.memoryStorage();
 
 // File filter to allow only images and documents for chat
-const fileFilter = (req: any, file: any, cb: any) => {
-  const allowedImageTypes = [
-    "image/jpeg",
-    "image/png",
-    "image/gif",
-    "image/webp",
-  ];
-  
-  const allowedDocumentTypes = [
-    "application/pdf",
-    "application/msword",
-    "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-    "application/vnd.ms-powerpoint",
-    "application/vnd.openxmlformats-officedocument.presentationml.presentation",
-    "application/vnd.ms-excel",
-    "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-  ];
-
-  if (
-    allowedImageTypes.includes(file.mimetype) ||
-    allowedDocumentTypes.includes(file.mimetype)
-  ) {
+const fileFilter = (
+  req: Request,
+  file: Express.Multer.File,
+  cb: FileFilterCallback
+) => {
+  if (ALLOWED_FILE_TYPES.includes(file.mimetype as any)) {
     cb(null, true);
   } else {
-    cb(
-      new Error(
-        "Invalid file type. Only images (jpeg, png, gif, webp) and documents (pdf, doc, docx, ppt, pptx, xls, xlsx) are allowed.",
-      ),
-      false,
+    const error = new Error(
+      "Invalid file type. Only images (jpeg, png, gif, webp) and documents (pdf, doc, docx, ppt, pptx, xls, xlsx) are allowed.",
     );
+    cb(error);
   }
 };
 
@@ -41,17 +27,17 @@ const fileFilter = (req: any, file: any, cb: any) => {
 const getMaxFileSize = (mimetype: string): number => {
   // Images: 10MB
   if (mimetype.startsWith("image/")) {
-    return 10 * 1024 * 1024;
+    return FILE_SIZE_LIMITS.IMAGE;
   }
   // Documents: 20MB
-  return 20 * 1024 * 1024;
+  return FILE_SIZE_LIMITS.DOCUMENT;
 };
 
 const upload = multer({
   storage,
   fileFilter,
   limits: {
-    fileSize: 20 * 1024 * 1024, // Max 20MB (will be checked per file type in controller)
+    fileSize: FILE_SIZE_LIMITS.MAX, // Max 20MB (will be checked per file type in controller)
   },
 });
 
