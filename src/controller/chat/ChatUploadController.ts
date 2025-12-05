@@ -2,6 +2,7 @@ import { Request, Response } from "express";
 import { asyncMiddleware } from "../../middleware/asyncMiddleware";
 import { getStorageProvider } from "../../storage";
 import { MessageType } from "@prisma/client";
+import { FILE_SIZE_LIMITS } from "../../shared/constants/fileLimits";
 
 /**
  * Upload chat attachment (image or document)
@@ -29,8 +30,7 @@ export const uploadChatAttachment = asyncMiddleware(
         folder = "chat/images";
         
         // Validate image file size (10MB)
-        const maxImageSize = 10 * 1024 * 1024;
-        if (file.size > maxImageSize) {
+        if (file.size > FILE_SIZE_LIMITS.IMAGE) {
           return res.status(400).json({
             success: false,
             message: "Image file size exceeds 10MB limit",
@@ -42,8 +42,7 @@ export const uploadChatAttachment = asyncMiddleware(
         folder = "chat/documents";
         
         // Validate document file size (20MB)
-        const maxDocumentSize = 20 * 1024 * 1024;
-        if (file.size > maxDocumentSize) {
+        if (file.size > FILE_SIZE_LIMITS.DOCUMENT) {
           return res.status(400).json({
             success: false,
             message: "Document file size exceeds 20MB limit",
