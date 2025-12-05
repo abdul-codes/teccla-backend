@@ -27,6 +27,7 @@ import {
 
 import { uploadChatAttachment as uploadChatAttachmentController } from '../../controller/chat/ChatUploadController';
 import { uploadChatAttachment as uploadChatAttachmentMiddleware } from '../../middleware/chatFileUploadMiddleware';
+import { uploadRateLimiter } from '../../middleware/uploadRateLimiter';
 
 
 const router = Router();
@@ -44,8 +45,9 @@ router.post('/conversations/:id/participants', isConversationParticipant, canMan
 router.delete('/conversations/:id/participants/:userId', isConversationParticipant, canManageConversation, removeParticipant);
 router.delete('/conversations/:id/leave', isConversationParticipant, leaveConversation);
 
-// File upload route
-router.post('/upload', uploadChatAttachmentMiddleware, uploadChatAttachmentController);
+// File upload route with rate limiting
+router.post('/upload', uploadRateLimiter, uploadChatAttachmentMiddleware, uploadChatAttachmentController);
+
 
 
 // Message routes
