@@ -14,7 +14,7 @@ export const sendMessage = asyncMiddleware(async (req: Request, res: Response) =
       return res.status(400).json({ errors: errors.array() });
     }
 
-    const { conversationId, content, messageType = MessageType.TEXT, replyToId, attachmentUrl, attachmentType } = req.body;
+    const { conversationId, content, messageType = MessageType.TEXT, replyToId, attachmentUrl, attachmentType, attachmentName } = req.body;
     const userId = req.user?.id;
     const participant = req.participant;
 
@@ -59,6 +59,7 @@ export const sendMessage = asyncMiddleware(async (req: Request, res: Response) =
         replyToId,
         attachmentUrl,
         attachmentType,
+        attachmentName,
       },
       include: {
         sender: {
