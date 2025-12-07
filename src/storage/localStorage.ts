@@ -3,10 +3,7 @@ import path from "path";
 import crypto from "crypto";
 import { StorageProvider, StorageResult } from "./storage.interface";
 
-/**
- * Local filesystem storage implementation
- * Stores files in /uploads directory
- */
+
 export class LocalStorage implements StorageProvider {
   private readonly uploadsDir: string;
   private readonly baseUrl: string;
@@ -19,9 +16,8 @@ export class LocalStorage implements StorageProvider {
     this.baseUrl = process.env.BACKEND_URL || "http://localhost:8000";
   }
 
-  /**
-   * Save file to local filesystem
-   */
+  // Save file to local filesystem
+  
   async save(
     file: Express.Multer.File,
     folder: string,
@@ -64,9 +60,8 @@ export class LocalStorage implements StorageProvider {
     };
   }
 
-  /**
-   * Delete file from local filesystem
-   */
+  // Delete file from local filesystem
+   
   async delete(publicId: string): Promise<void> {
     const filePath = path.join(this.uploadsDir, publicId);
 
