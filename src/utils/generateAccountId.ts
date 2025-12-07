@@ -1,12 +1,10 @@
-import { PrismaClient } from '@prisma/client';
+import { prisma } from './db';
 import crypto from 'crypto';
-
-const prisma = new PrismaClient();
 
 export async function generateUniqueAccountId(): Promise<string> {
   const maxAttempts = 10; // Prevent infinite loops
   let attempts = 0;
-  
+
   while (attempts < maxAttempts) {
     // Generate a candidate accountId (e.g., 8-digit number)
     const candidateId = crypto.randomInt(10000000, 100000000).toString();
