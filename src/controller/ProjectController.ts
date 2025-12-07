@@ -139,7 +139,7 @@ export const createProject = asyncMiddleware(
         assetType: AssetType,
       ) => {
         const folder = assetType === AssetType.IMAGE ? 'projects/images' : 'projects/documents';
-        
+
         for (const file of fileArray) {
           fileUploadPromises.push(
             (async () => {
@@ -256,87 +256,106 @@ export const updateProject = asyncMiddleware(
   async (req: Request, res: Response) => {
     const { id } = req.params;
     const validatedData: UpdateProjectInput = req.body;
+    const uploadedFileIds: string[] = [];
+    const storage = getStorageProvider();
 
     try {
-      // Use transaction for atomic operations
+      // 1. Initial check for existence and authorization (fast)
+      const existingProject = await prisma.project.findUnique({
+        where: { id },
+        select: { createdById: true }
+      });
+
+      if (!existingProject) {
+        throw new Error("Project not found");
+      }
+
+      if (existingProject.createdById !== req.user!.id && req.user!.role !== "ADMIN") {
+        throw new Error("Not authorized to update this project");
+      }
+
+      // 2. Handle new file uploads BEFORE transaction
+      const files = (req.files as {
+        [fieldname: string]: Express.Multer.File[];
+      }) || {};
+
+      const newAssetsData: {
+        url: string;
+        publicId: string;
+        assetType: AssetType;
+        format: string;
+        bytes: string;
+        width: string;
+        height: string;
+        uploadedById: string;
+        projectId: string;
+      }[] = [];
+
+      if (files.images?.length || files.files?.length) {
+        const fileUploadPromises: Promise<void>[] = [];
+
+        const processFiles = (
+          fileArray: Express.Multer.File[],
+          assetType: AssetType,
+        ) => {
+          const folder = assetType === AssetType.IMAGE ? 'projects/images' : 'projects/documents';
+
+          for (const file of fileArray) {
+            fileUploadPromises.push(
+              (async () => {
+                const result = await storage.save(file, folder);
+                uploadedFileIds.push(result.publicId); // Track for rollback
+
+                newAssetsData.push({
+                  url: result.url,
+                  publicId: result.publicId,
+                  assetType: assetType,
+                  format: result.format,
+                  bytes: result.bytes.toString(),
+                  width: result.width ? result.width.toString() : "0",
+                  height: result.height ? result.height.toString() : "0",
+                  uploadedById: req.user!.id,
+                  projectId: id,
+                });
+              })(),
+            );
+          }
+        };
+
+        if (files.images) processFiles(files.images, AssetType.IMAGE);
+        if (files.files) processFiles(files.files, AssetType.DOCUMENT);
+
+        await Promise.all(fileUploadPromises);
+      }
+
+      // 3. Database Transaction
       const result = await prisma.$transaction(async (tx) => {
-        // Get existing project with assets
-        const existingProject = await tx.project.findUnique({
-          where: { id },
-          include: { asset: true }
-        });
-
-        if (!existingProject) {
-          throw new Error("Project not found");
-        }
-
-        // Authorization check
-        if (existingProject.createdById !== req.user!.id && req.user!.role !== "ADMIN") {
-          throw new Error("Not authorized to update this project");
-        }
-
         // Handle asset deletions if specified
-        const storage = getStorageProvider();
+        let assetsToDelete: { publicId: string }[] = [];
         if (validatedData.deleteAssets && Array.isArray(validatedData.deleteAssets)) {
-          const assetsToDelete = await tx.asset.findMany({
+          // Get publicIds before deleting from DB
+          const assets = await tx.asset.findMany({
             where: {
               id: { in: validatedData.deleteAssets },
               projectId: id,
             },
+            select: { publicId: true, id: true }
           });
 
-          for (const asset of assetsToDelete) {
-            try {
-              await storage.delete(asset.publicId);
-            } catch (err) {
-              console.error(`Failed to delete asset ${asset.publicId}:`, err);
-            }
-            await tx.asset.delete({ where: { id: asset.id } });
+          assetsToDelete = assets;
+
+          if (assets.length > 0) {
+            await tx.asset.deleteMany({
+              where: { id: { in: assets.map(a => a.id) } }
+            });
           }
         }
 
-        // Handle new file uploads
-        const files = (req.files as {
-          [fieldname: string]: Express.Multer.File[];
-        }) || {};
-
-        if (files.images?.length || files.files?.length) {
-          const fileUploadPromises: Promise<void>[] = [];
-          const storage = getStorageProvider();
-
-          const processFiles = (
-            fileArray: Express.Multer.File[],
-            assetType: AssetType,
-          ) => {
-            const folder = assetType === AssetType.IMAGE ? 'projects/images' : 'projects/documents';
-            
-            for (const file of fileArray) {
-              fileUploadPromises.push(
-                (async () => {
-                  const result = await storage.save(file, folder);
-
-                  await tx.asset.create({
-                    data: {
-                      url: result.url,
-                      publicId: result.publicId,
-                      assetType: assetType,
-                      format: result.format,
-                      bytes: result.bytes.toString(),
-                      width: result.width ? result.width.toString() : "0",
-                      height: result.height ? result.height.toString() : "0",
-                      uploadedById: req.user!.id,
-                      projectId: id,
-                    },
-                  });
-                })(),
-              );
-            }
-          };
-
-          if (files.images) processFiles(files.images, AssetType.IMAGE);
-          if (files.files) processFiles(files.files, AssetType.DOCUMENT);
-
-          await Promise.all(fileUploadPromises);
+        // Insert new assets
+        if (newAssetsData.length > 0) {
+          await tx.asset.createMany({
+            data: newAssetsData
+          });
         }
 
         // Update project data
@@ -356,43 +375,72 @@ export const updateProject = asyncMiddleware(
               ? new Date(validatedData.finishDate)
               : undefined,
           },
-          include: { 
-            asset: true, 
-            createdBy: { 
-              select: { 
-                id: true, 
-                firstName: true, 
-                lastName: true, 
-                email: true 
-              } 
-            } 
+          include: {
+            asset: true,
+            createdBy: {
+              select: {
+                id: true,
+                firstName: true,
+                lastName: true,
+                email: true
+              }
+            }
           }
         });
 
-        return updatedProject;
+        return { updatedProject, assetsToDelete };
       });
+
+      // 4. Post-Transaction Cleanup (Delete old assets from storage)
+      // Only runs if transaction succeeded
+      if (result.assetsToDelete && result.assetsToDelete.length > 0) {
+        Promise.all(
+          result.assetsToDelete.map(asset =>
+            storage.delete(asset.publicId).catch(err =>
+              console.error(`Failed to delete asset ${asset.publicId}:`, err)
+            )
+          )
+        ).catch(err => console.error("Background asset deletion error:", err));
+      }
 
       return res.status(200).json({
         success: true,
         message: "Project updated successfully",
-        data: result,
+        data: result.updatedProject,
       });
+
     } catch (error) {
-      console.error("Project update error:", error);
+      // Rollback: Delete newly uploaded files if anything failed
+      if (uploadedFileIds.length > 0) {
+        Promise.all(
+          uploadedFileIds.map(publicId =>
+            storage.delete(publicId).catch(err =>
+              console.error(`Failed to rollback file ${publicId}:`, err)
+            )
+          )
+        ).catch(err => console.error("Rollback error:", err));
+      }
+
       if (error instanceof Error) {
+        // Operational errors - Log warning only
         if (error.message === "Project not found") {
+          console.warn(`Update failed: Project ${id} not found`);
           return res.status(404).json({
             success: false,
             message: "Project not found",
           });
         }
         if (error.message === "Not authorized to update this project") {
+          console.warn(`Update failed: User ${req.user?.id} unauthorized for project ${id}`);
           return res.status(403).json({
             success: false,
             message: "Not authorized to update this project",
           });
         }
       }
+
+      // System errors - Log full error
+      console.error("Project update error:", error);
       return res.status(500).json({
         success: false,
         message: "Internal server error",
@@ -413,9 +461,9 @@ export const deleteProject = asyncMiddleware(
       });
 
       if (!projectWithAssets) {
-        return res.status(404).json({ 
-          success: false, 
-          message: "Project not found" 
+        return res.status(404).json({
+          success: false,
+          message: "Project not found"
         });
       }
 
@@ -429,8 +477,8 @@ export const deleteProject = asyncMiddleware(
 
       // Clean up storage assets first
       const storage = getStorageProvider();
-      const deletePromises = projectWithAssets.asset.map(asset => 
-        storage.delete(asset.publicId).catch(err => 
+      const deletePromises = projectWithAssets.asset.map(asset =>
+        storage.delete(asset.publicId).catch(err =>
           console.error(`Failed to delete asset ${asset.publicId}:`, err)
         )
       );
