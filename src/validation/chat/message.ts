@@ -44,6 +44,11 @@ export const sendMessageValidation = [
     .optional()
     .isIn(['IMAGE', 'DOCUMENT'])
     .withMessage('Invalid attachment type'),
+  body('attachmentName')
+    .optional()
+    .isString()
+    .isLength({ max: 255 })
+    .withMessage('Attachment name must be a string with max 255 characters'),
   // Custom validation for attachment consistency
   body().custom((_value, { req }) => {
     const hasAttachmentUrl = !!req.body.attachmentUrl;
