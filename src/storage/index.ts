@@ -7,7 +7,7 @@ import { R2Storage } from './r2Storage';
  * Returns the appropriate storage implementation based on environment
  */
 export const getStorageProvider = (): StorageProvider => {
-  const provider = process.env.STORAGE_PROVIDER || 'local';
+  const provider = process.env.STORAGE_PROVIDER || 'r2';
   
   switch (provider.toLowerCase()) {
     case 'local':
@@ -22,8 +22,8 @@ export const getStorageProvider = (): StorageProvider => {
       return new R2Storage();
     
     default:
-      console.warn(`Unknown storage provider "${provider}", defaulting to local`);
-      return new LocalStorage();
+      console.warn(`Unknown storage provider "${provider}", defaulting to r2`);
+      return new R2Storage();
   }
 };
 
