@@ -11,6 +11,8 @@ import userProfileRoutes from "./routes/UserProfileRoutes";
 import projectRoutes from "./routes/ProjectRoutes";
 import chatRoutes from "./routes/chat/ChatRoutes";
 import { initializeSocket } from "./socket/socketServer";
+import Logger from "./utils/logger";
+
 
 const app = express();
 const server = createServer(app);
@@ -20,16 +22,27 @@ app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
 const corsOptions = {
-  origin: 'http://localhost:5173' ,
+  origin: process.env.FRONTEND_URL || 'http://localhost:5173',
   credentials: true, // Enable credentials (cookies, authorization headers, etc.)
   optionsSuccessStatus: 200 // Some legacy browsers (IE11, various SmartTVs) choke on 204
 };
 app.use(cors(corsOptions));
 
-// Serve static files from uploads directory
+// Serve static files from uploads directory (only needed for local storage)
 app.use('/uploads', express.static(path.join(__dirname, '../uploads')));
 
-// app.use(limiter);
+// Rate limiting (enabled for production)
+app.use(limiter);
+
+// Health check endpoint (for load balancers, Docker, monitoring)
+app.get("/health", (_req, res) => {
+  res.status(200).json({
+    status: "ok",
+    timestamp: new Date().toISOString(),
+    uptime: process.uptime(),
+    environment: process.env.NODE_ENV || "development",
+  });
+});
 
 app.use("/api/auth", authRoutes);
 app.use("/api/users/profile", userProfileRoutes); // Must be BEFORE /api/users
@@ -46,8 +59,9 @@ const PORT = process.env.PORT || 7000;
 // Initialize Socket.io
 initializeSocket(server);
 
+
 server.listen(PORT, () => {
-  console.log(`Server running with Socket.io on localhost:${PORT}`);
+  Logger.info(`Server running with Socket.io on localhost:${PORT}`);
 });
 // Trigger restart 2
 
