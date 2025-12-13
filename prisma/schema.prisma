@@ -185,6 +185,11 @@ model MessageRead {
   @@index([userId, messageId])
 }
 
+model Subscription {
+  id  String @id @default(cuid())
+  userId String  @unique
+}
+
 enum UserRole {
   ADMIN
   USER
