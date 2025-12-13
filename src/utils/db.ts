@@ -1,13 +1,25 @@
-// import { PrismaClient } from '@prisma/client'
+import 'dotenv/config';
+import { PrismaPg } from '@prisma/adapter-pg';
+import { PrismaClient } from '../../prisma/generated/prisma/client';
 
-// export const prisma = new PrismaClient()
-// // use `prisma` in your application to read and write data in your DB
+const connectionString = process.env.TEST_DATABASE_URL;
 
-import { PrismaClient } from '@prisma/client'
+// Create the adapter instance
+const adapter = new PrismaPg({ connectionString });
 
-const globalForPrisma = globalThis as unknown as { prisma: PrismaClient }
+const globalForPrisma = global as unknown as {
+  prisma: PrismaClient | undefined;
+};
 
-export const prisma =
-  globalForPrisma.prisma || new PrismaClient()
+const prisma =
+  globalForPrisma.prisma ||
+  new PrismaClient({
+    adapter,
+  });
 
-if (process.env.NODE_ENV !== 'production') globalForPrisma.prisma = prisma
+if (process.env.NODE_ENV !== 'production') {
+  globalForPrisma.prisma = prisma;
+}
+
+export { prisma };
+
