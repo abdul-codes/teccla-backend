@@ -5,12 +5,13 @@ import { prisma } from '../utils/db';
 import { sanitizeMessageContent } from '../utils/contentSanitizer';
 import { initializeEnhancedPresence, handleEnhancedConnection } from './handlers/connectionHandler';
 import './types';
+import Logger from '../utils/logger';
 
 // Environment validation
 function validateEnvironment() {
   const required = ['ACCESS_TOKEN'];
   const missing = required.filter(key => !process.env[key]);
-  
+
   if (missing.length > 0) {
     throw new Error(`Missing required environment variables: ${missing.join(', ')}`);
   }
@@ -19,7 +20,7 @@ function validateEnvironment() {
 export function initializeSocket(server: HTTPServer) {
   // Validate environment variables
   validateEnvironment();
-  
+
   const io = new SocketIOServer(server, {
     cors: {
       origin: process.env.FRONTEND_URL || "http://localhost:3000",
@@ -38,13 +39,13 @@ export function initializeSocket(server: HTTPServer) {
   io.use(async (socket, next) => {
     try {
       const token = socket.handshake.auth.token;
-      
+
       if (!token) {
         return next(new Error('Authentication token required'));
       }
 
       const decoded = jwt.verify(token, process.env.ACCESS_TOKEN!) as any;
-      
+
       // Get user from database
       const user = await prisma.user.findUnique({
         where: { id: decoded.id },
@@ -70,13 +71,14 @@ export function initializeSocket(server: HTTPServer) {
       };
       next();
     } catch (error) {
+      Logger.error('Socket authentication error:', error);
       return next(new Error('Invalid authentication token'));
     }
   });
 
   // Enhanced connection handler with presence management
   io.on('connection', (socket) => {
-    console.log(`User connected: ${socket.user?.firstName} ${socket.user?.lastName} (${socket.id})`);
+    Logger.info(`User connected: ${socket.user?.firstName} ${socket.user?.lastName} (${socket.id})`);
 
     // Join user to their personal room
     socket.join(`user:${socket.user?.id}`);
@@ -97,11 +99,11 @@ export function initializeSocket(server: HTTPServer) {
 
         const now = Date.now();
         const lastMessage = messageCooldowns.get(userId);
-        
+
         if (lastMessage && now - lastMessage < 3000) {
           return socket.emit('error', { message: 'Please wait 3 seconds between messages' });
         }
-        
+
         messageCooldowns.set(userId, now);
 
         if (!userId) {
