@@ -1,80 +1,69 @@
-import fs from "fs";
-import path from "path";
-import crypto from "crypto";
-import { StorageProvider, StorageResult } from "./storage.interface";
-
+import fs from 'fs/promises';
+import path from 'path';
+import crypto from 'crypto';
+import { StorageProvider, StorageResult } from './storage.interface';
+import Logger from '../utils/logger';
 
 export class LocalStorage implements StorageProvider {
-  private readonly uploadsDir: string;
-  private readonly baseUrl: string;
+  private uploadDir: string;
+  private baseUrl: string;
 
   constructor() {
-    // Path to uploads directory (backend/uploads)
-    this.uploadsDir = path.join(__dirname, "../../uploads");
-
-    // Base URL for accessing files
-    this.baseUrl = process.env.BACKEND_URL || "http://localhost:8000";
+    this.uploadDir = path.join(__dirname, '../../uploads');
+    this.baseUrl = process.env.BACKEND_URL || 'http://localhost:8000';
+    this.ensureUploadDir();
   }
 
-  // Save file to local filesystem
-  
-  async save(
-    file: Express.Multer.File,
-    folder: string,
-  ): Promise<StorageResult> {
-    // Create full directory path
-    const uploadPath = path.join(this.uploadsDir, folder);
+  private async ensureUploadDir() {
+    try {
+      await fs.access(this.uploadDir);
+    } catch {
+      await fs.mkdir(this.uploadDir, { recursive: true });
+    }
+  }
 
-    // Create directory if it doesn't exist
-    await fs.promises.mkdir(uploadPath, { recursive: true });
-
-    // Generate unique filename
-    const uniqueSuffix = crypto.randomBytes(8).toString("hex");
+  async save(file: Express.Multer.File, folder: string): Promise<StorageResult> {
+    const uniqueSuffix = crypto.randomBytes(8).toString('hex');
     const timestamp = Date.now();
     const ext = path.extname(file.originalname);
     const filename = `${timestamp}_${uniqueSuffix}${ext}`;
 
-    // Full path to save file
-    const filePath = path.join(uploadPath, filename);
+    // Create folder if it doesn't exist
+    const folderPath = path.join(this.uploadDir, folder);
+    await fs.mkdir(folderPath, { recursive: true });
 
-    // Write file to disk
-    await fs.promises.writeFile(filePath, file.buffer);
+    const filePath = path.join(folderPath, filename);
+    await fs.writeFile(filePath, file.buffer);
 
-    // Construct public URL
-    const relativePath = `/${folder}/${filename}`;
-    const url = `${this.baseUrl}/uploads${relativePath}`;
-
-    // Public ID for deletion (relative path without leading slash)
+    // Construct public URL and ID
+    // publicId is the relative path from uploads dir
     const publicId = `${folder}/${filename}`;
+    const url = `${this.baseUrl}/uploads/${publicId}`;
 
-    // Get file format
-    const format = ext.substring(1) || "unknown"; // Remove leading dot
-
-    console.log(`File saved: ${publicId} (${file.size} bytes)`);
+    Logger.info(`File saved locally: ${publicId} (${file.size} bytes)`);
 
     return {
       url,
       publicId,
-      format,
+      format: ext.substring(1),
       bytes: file.size,
+      width: undefined, // Would need sharp/image-size to get dimensions
+      height: undefined
     };
   }
 
-  // Delete file from local filesystem
-   
   async delete(publicId: string): Promise<void> {
-    const filePath = path.join(this.uploadsDir, publicId);
-
     try {
-      // Check if file exists
-      if (fs.existsSync(filePath)) {
-        await fs.promises.unlink(filePath);
-        console.log(`File deleted: ${publicId}`);
-      } else {
-        console.log(` File not found (already deleted?): ${publicId}`);
-      }
+      const filePath = path.join(this.uploadDir, publicId);
+      await fs.unlink(filePath);
+      Logger.info(`File deleted locally: ${publicId}`);
     } catch (error) {
-      console.error(`Failed to delete file ${publicId}:`, error);
+      // Ignore if file doesn't exist
+      if ((error as NodeJS.ErrnoException).code === 'ENOENT') {
+        Logger.warn(`File not found for deletion: ${publicId}`);
+        return;
+      }
+      Logger.error(`Failed to delete file ${publicId}:`, error);
       throw error;
     }
   }

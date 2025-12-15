@@ -103,6 +103,8 @@ model User {
   OtpVerification          OtpVerification[]
   projects                 Project[]
   RefreshTokens            RefreshToken[]
+  subscription             Subscription?
+
 
   @@index([email, role, userAccountId])
 }
@@ -185,6 +187,35 @@ model MessageRead {
   @@index([userId, messageId])
 }
 
+model Subscription {
+  id  String @id @default(cuid())
+  userId String  @unique
+  createdAt               DateTime          @default(now())
+  updatedAt               DateTime          @updatedAt
+  user                    User              @relation(fields: [userId], references: [id], onDelete: Cascade)
+  payments                Payment[]
+
+  @@index([userId])
+  @@index([paystackCustomerCode])
+  @@index([status])
+
+}
+
+model Payment {
+  id                 String        @id @default(cuid())
+  subscriptionId     String    
+  currency           String        @default("NGN")
+  status             PaymentStatus
+  channel            String?       // card, bank, ussd, etc.
+  cardType           String?       // visa, mastercard, verve
+  bank               String?       // For bank transfers
+  description        String?
+  paidAt             DateTime?
+  createdAt          DateTime      @default(now())
+  paystackReference  String        @unique
+  subscription       Subscription @relation(fields:[subscriptionId], references: [id], onDelete: Cascade)
+}
+
 enum UserRole {
   ADMIN
   USER
@@ -216,4 +247,20 @@ enum MessageType {
   VIDEO
   AUDIO
   SYSTEM
+}
+
+enum SubscriptionStatus {
+  ACTIVE
+  INACTIVE
+  NON_RENEWING  // Canceled but still valid until period end
+  ATTENTION     // Payment failed, needs attention
+  COMPLETED     // Subscription ended
+}
+
+enum PaymentStatus {
+  SUCCESS
+  PENDING
+  FAILED
+  ABANDONED
+  REVERSED
 }

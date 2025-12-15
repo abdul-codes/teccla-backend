@@ -2,7 +2,7 @@ import { S3Client, PutObjectCommand, DeleteObjectCommand } from '@aws-sdk/client
 import { StorageProvider, StorageResult } from './storage.interface';
 import crypto from 'crypto';
 import path from 'path';
-
+import Logger from '../utils/logger';
 
 export class R2Storage implements StorageProvider {
   private s3Client: S3Client;
@@ -25,7 +25,7 @@ export class R2Storage implements StorageProvider {
     const endpoint = `https://${accountId}.r2.cloudflarestorage.com`;
 
     this.s3Client = new S3Client({
-      region: 'auto', // R2 uses "auto" as region
+      region: 'auto', // 
       endpoint: endpoint,
       credentials: {
         accessKeyId: accessKeyId,
@@ -37,8 +37,6 @@ export class R2Storage implements StorageProvider {
     this.publicUrl = process.env.R2_PUBLIC_URL || `https://pub-${accountId}.r2.dev`;
   }
 
- //  Save file to R2 bucket
- 
   async save(file: Express.Multer.File, folder: string): Promise<StorageResult> {
     try {
       // Generate unique filename
@@ -56,7 +54,6 @@ export class R2Storage implements StorageProvider {
         Key: key,
         Body: file.buffer,
         ContentType: file.mimetype,
-        // Optional: Add metadata
         Metadata: {
           originalName: file.originalname,
           uploadedAt: new Date().toISOString(),
@@ -71,24 +68,21 @@ export class R2Storage implements StorageProvider {
       // Get file format
       const format = ext.substring(1) || 'unknown';
 
-      console.log(`File uploaded to R2: ${key} (${file.size} bytes)`);
+      Logger.info(`File uploaded to R2: ${key} (${file.size} bytes)`);
 
       return {
         url,
-        publicId: key, // Use the key as publicId for deletion
+        publicId: key, 
         format,
         bytes: file.size,
-        // R2 doesn't auto-extract image dimensions, would need sharp for that
         width: undefined,
         height: undefined,
       };
     } catch (error) {
-      console.error('R2 upload error:', error);
+      Logger.error('R2 upload error:', error);
       throw new Error(`Failed to upload to R2: ${error instanceof Error ? error.message : 'Unknown error'}`);
     }
   }
-
- // Delete file from R2 bucket
 
   async delete(publicId: string): Promise<void> {
     try {
@@ -98,9 +92,9 @@ export class R2Storage implements StorageProvider {
       });
 
       await this.s3Client.send(command);
-      console.log(`File deleted from R2: ${publicId}`);
+      Logger.info(`File deleted from R2: ${publicId}`);
     } catch (error) {
-      console.error(`Failed to delete file from R2: ${publicId}`, error);
+      Logger.error(`Failed to delete file from R2: ${publicId}`, error);
       throw error;
     }
   }
