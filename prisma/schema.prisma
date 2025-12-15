@@ -202,9 +202,8 @@ model Subscription {
 }
 
 model Payment {
-  id       String        @id @default(cuid())
+  id                 String        @id @default(cuid())
   currency           String        @default("NGN")
-   currency           String        @default("NGN")
   status             PaymentStatus
   channel            String?       // card, bank, ussd, etc.
   cardType           String?       // visa, mastercard, verve
@@ -212,6 +211,7 @@ model Payment {
   description        String?
   paidAt             DateTime?
   createdAt          DateTime      @default(now())
+  paystackReference  String        @unique
 
 }
 
