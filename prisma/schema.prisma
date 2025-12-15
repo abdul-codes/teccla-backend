@@ -240,3 +240,19 @@ enum MessageType {
   AUDIO
   SYSTEM
 }
+
+enum SubscriptionStatus {
+  ACTIVE
+  INACTIVE
+  NON_RENEWING  // Canceled but still valid until period end
+  ATTENTION     // Payment failed, needs attention
+  COMPLETED     // Subscription ended
+}
+
+enum PaymentStatus {
+  SUCCESS
+  PENDING
+  FAILED
+  ABANDONED
+  REVERSED
+}
