@@ -203,6 +203,7 @@ model Subscription {
 
 model Payment {
   id                 String        @id @default(cuid())
+  subscriptionId     String    
   currency           String        @default("NGN")
   status             PaymentStatus
   channel            String?       // card, bank, ussd, etc.
@@ -212,7 +213,7 @@ model Payment {
   paidAt             DateTime?
   createdAt          DateTime      @default(now())
   paystackReference  String        @unique
-
+  subscription       Subscription @relation(fields:[subscriptionId], references: [id], onDelete: Cascade)
 }
 
 enum UserRole {
