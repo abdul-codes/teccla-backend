@@ -1,13 +1,12 @@
 import { Request, Response } from "express";
 import { asyncMiddleware } from "../../middleware/asyncMiddleware";
 import { getStorageProvider } from "../../storage";
-import { MessageType } from "@prisma/client";
+import { MessageType } from "../../../prisma/generated/prisma/client";
 import { FILE_SIZE_LIMITS } from "../../shared/constants/fileLimits";
 
-/**
- * Upload chat attachment (image or document)
- * Uses the storage provider pattern (local or R2)
- */
+// Upload chat attachment (image or document)
+ // Uses the storage provider pattern (R2)
+ 
 export const uploadChatAttachment = asyncMiddleware(
   async (req: Request, res: Response) => {
     try {
@@ -28,7 +27,7 @@ export const uploadChatAttachment = asyncMiddleware(
       if (file.mimetype.startsWith("image/")) {
         messageType = MessageType.IMAGE;
         folder = "chat/images";
-        
+
         // Validate image file size (10MB)
         if (file.size > FILE_SIZE_LIMITS.IMAGE) {
           return res.status(400).json({
@@ -40,7 +39,7 @@ export const uploadChatAttachment = asyncMiddleware(
         // Document
         messageType = MessageType.DOCUMENT;
         folder = "chat/documents";
-        
+
         // Validate document file size (20MB)
         if (file.size > FILE_SIZE_LIMITS.DOCUMENT) {
           return res.status(400).json({
