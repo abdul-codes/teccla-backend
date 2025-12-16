@@ -2,7 +2,7 @@ import { Request, Response } from "express";
 import { validationResult } from "express-validator";
 import { asyncMiddleware } from "../../middleware/asyncMiddleware";
 import { prisma } from "../../utils/db";
-import { ParticipantRole } from "@prisma/client";
+import { ParticipantRole } from "../../../prisma/generated/prisma/client";
 
 export const createConversation = asyncMiddleware(async (req: Request, res: Response) => {
   try {
@@ -29,7 +29,7 @@ export const createConversation = asyncMiddleware(async (req: Request, res: Resp
     if (!isGroup && participantIds.length === 1) {
       const otherUserId = participantIds[0];
       console.log('Checking for existing 1-on-1 conversation between:', userId, 'and', otherUserId);
-      
+
       // More efficient only get conversations where BOTH users are participants
       const existingConversations = await prisma.conversation.findMany({
         where: {
@@ -266,8 +266,8 @@ export const getUserConversations = asyncMiddleware(async (req: Request, res: Re
     // Map latest messages to conversations
     const messageMap = new Map();
     latestMessages.forEach(msg => {
-      if (!messageMap.has(msg.conversationId) || 
-          msg.createdAt > messageMap.get(msg.conversationId).createdAt) {
+      if (!messageMap.has(msg.conversationId) ||
+        msg.createdAt > messageMap.get(msg.conversationId).createdAt) {
         messageMap.set(msg.conversationId, msg);
       }
     });
