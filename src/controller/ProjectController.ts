@@ -7,6 +7,8 @@ import {
   UpdateProjectInput,
 } from "../validation/project";
 import { asyncMiddleware } from "../middleware/asyncMiddleware";
+import { getStorageProvider } from "../storage";
+import { AssetType, Project } from "../../prisma/generated/prisma/client";
 
 // interface AuthRequest extends Request {
 //   user?: {
@@ -90,8 +92,7 @@ export const getAllProjects = asyncMiddleware(
   },
 );
 
-import { getStorageProvider } from "../storage";
-import { AssetType, Project } from "@prisma/client";
+
 
 export const createProject = asyncMiddleware(
   async (req: Request, res: Response) => {
