@@ -11,7 +11,7 @@ import { asyncMiddleware } from "../middleware/asyncMiddleware";
 import { generateUniqueAccountId } from "../utils/generateAccountId";
 import { generateOtp } from "../utils/generateOtp";
 import { sendOTP } from "../utils/Mail";
-import { UserRole } from "@prisma/client";
+import { UserRole } from "../../prisma/generated/prisma/client";
 
 const REFRESH_TOKEN = process.env.REFRESH_TOKEN as string;
 
@@ -92,7 +92,7 @@ export const registerUser = asyncMiddleware(
 
       try {
         await sendOTP(email, otp);
-        res.status(201).json({ 
+        res.status(201).json({
           message: "Registration successful. Please check your email for OTP verification.",
           user: {
             id: newUser.id,
@@ -261,7 +261,7 @@ export const logoutUser = asyncMiddleware(
               token: refreshToken,
               userId: decoded.id,
             },
-            data: {revoked: true}
+            data: { revoked: true }
           });
         } catch (verifyError) {
           console.error(
