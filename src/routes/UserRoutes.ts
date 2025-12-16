@@ -1,10 +1,10 @@
 import { Router } from "express";
 import { authenticateUser, authorizeRoles } from "../middleware/authMIddleware";
 import { getAllUsers, getUserById, updateUser, deleteUser, getCurrentUser, searchUsers } from "../controller/UserController";
-import { UserRole } from "@prisma/client";
+import { UserRole } from "../../prisma/generated/prisma/client";
 
 
-const router =  Router()
+const router = Router()
 
 // Admin routes
 router.get("/", authenticateUser, authorizeRoles(UserRole.ADMIN), getAllUsers)
