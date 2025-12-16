@@ -1,7 +1,7 @@
 import { NextFunction, Request, Response } from "express";
 import { asyncMiddleware } from "./asyncMiddleware";
 import { prisma } from "../utils/db";
-import { ParticipantRole } from "@prisma/client";
+import { ParticipantRole } from "../../prisma/generated/prisma/client";
 import { getCachedParticipant, setCachedParticipant } from "../utils/simpleCache";
 
 declare global {
