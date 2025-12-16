@@ -2,7 +2,7 @@ import { NextFunction, Request, Response } from "express";
 import jwt from "jsonwebtoken";
 import { asyncMiddleware } from "./asyncMiddleware";
 import { prisma } from "../utils/db";
-import { UserRole } from "@prisma/client";
+import { UserRole } from "../../prisma/generated/prisma/client";
 
 
 const ACCESS_TOKEN = process.env.ACCESS_TOKEN;
@@ -86,7 +86,7 @@ export const authorizeAdmin = asyncMiddleware(async (req: Request, res: Response
 
 // Role-based Authorization Middleware
 export const authorizeRoles = (...allowedroles: UserRole[]) => {
-  return asyncMiddleware(async(req: Request, res: Response, next: NextFunction) => {
+  return asyncMiddleware(async (req: Request, res: Response, next: NextFunction) => {
     if (!req.user || !allowedroles.includes(req.user.role)) {
       return res.status(403).json({
         message: 'Access denied'
