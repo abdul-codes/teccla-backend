@@ -62,7 +62,7 @@ model Project {
   description String
   location    String
   budget      Float
-  type        String
+  type        ProjectType   @default(COMMERCIAL)
   status      ProjectStatus
   startDate   DateTime?
   finishDate  DateTime?
@@ -71,6 +71,16 @@ model Project {
   createdById String
   asset       Asset[]
   createdBy   User          @relation(fields: [createdById], references: [id])
+
+  // Performance indexes for filtering and sorting
+  @@index([status, createdAt(sort: Desc)])        // For status filtering + date sorting
+  @@index([type, createdAt(sort: Desc)])          // For type filtering + date sorting  
+  @@index([budget])                               // For budget range filtering
+  @@index([location])                             // For location filtering
+  @@index([createdById])                          // For creator filtering
+  @@index([title])                                // For search functionality
+  @@index([createdAt(sort: Desc)])                // Default sorting optimization
+  @@index([startDate(sort: Desc)])                // For project date sorting
 }
 
 model User {
@@ -196,9 +206,7 @@ model Subscription {
   payments                Payment[]
 
   @@index([userId])
-  @@index([paystackCustomerCode])
-  @@index([status])
-
+  
 }
 
 model Payment {
@@ -225,6 +233,17 @@ enum ProjectStatus {
   PLANNING
   IN_PROGRESS
   COMPLETED
+}
+
+enum ProjectType {
+  RESIDENTIAL
+  COMMERCIAL
+  INDUSTRIAL
+  INFRASTRUCTURE
+  RENOVATION
+  MAINTENANCE
+  CONSULTING
+  OTHER
 }
 
 enum AssetType {

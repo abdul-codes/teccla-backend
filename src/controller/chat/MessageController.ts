@@ -2,7 +2,7 @@ import { Request, Response } from "express";
 import { validationResult } from "express-validator";
 import { asyncMiddleware } from "../../middleware/asyncMiddleware";
 import { prisma } from "../../utils/db";
-import { MessageType } from "@prisma/client";
+import { MessageType } from "../../../prisma/generated/prisma/client";
 import { sanitizeMessageContent } from "../../utils/contentSanitizer";
 
 export const sendMessage = asyncMiddleware(async (req: Request, res: Response) => {
@@ -123,11 +123,11 @@ export const getMessages = asyncMiddleware(async (req: Request, res: Response) =
     const { page = 1, limit = 50, cursor } = req.query;
     const participant = req.participant;
 
-    console.log('GET MESSAGES :', { 
-      params: req.params, 
-      id, 
+    console.log('GET MESSAGES :', {
+      params: req.params,
+      id,
       conversationId,
-      query: req.query 
+      query: req.query
     });
 
     if (!participant) {
