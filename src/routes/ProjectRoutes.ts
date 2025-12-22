@@ -1,9 +1,9 @@
 import { Router } from "express";
-import { authenticateUser, authorizeAdmin } from "../middleware/authMIddleware";
+import { authenticateUser } from "../middleware/authMIddleware";
 import {
   createProject,
   deleteProject,
-  getAllProjects,
+  getFilteredProjects,
   getProjectById,
   updateProject,
 } from "../controller/ProjectController";
@@ -11,13 +11,14 @@ import { validateSchema } from "../middleware/validateMiddleware";
 import {
   createProjectSchema,
   updateProjectSchema,
+  projectQuerySchema,
 } from "../validation/project";
 
 import { uploadProjectFiles } from "../middleware/fileUploadMiddleware";
 
 const router = Router();
 
-router.get("/", authenticateUser, getAllProjects);
+router.get("/", authenticateUser, validateSchema(projectQuerySchema, 'query'), getFilteredProjects);
 router.get("/:id", authenticateUser, getProjectById);
 router.post(
   "/",
