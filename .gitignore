@@ -5,7 +5,7 @@ dist-ssr
 *.local
 .env
 test/uploads/
-test*
+
 .env.example
 docker-deps
 logs
