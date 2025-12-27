@@ -5,7 +5,7 @@ generator client {
 
 datasource db {
   provider = "postgresql"
- // url      = env("TEST_DATABASE_URL")
+  // url      = env("TEST_DATABASE_URL")
 }
 
 model OtpVerification {
@@ -73,14 +73,14 @@ model Project {
   createdBy   User          @relation(fields: [createdById], references: [id])
 
   // Performance indexes for filtering and sorting
-  @@index([status, createdAt(sort: Desc)])        // For status filtering + date sorting
-  @@index([type, createdAt(sort: Desc)])          // For type filtering + date sorting  
-  @@index([budget])                               // For budget range filtering
-  @@index([location])                             // For location filtering
-  @@index([createdById])                          // For creator filtering
-  @@index([title])                                // For search functionality
-  @@index([createdAt(sort: Desc)])                // Default sorting optimization
-  @@index([startDate(sort: Desc)])                // For project date sorting
+  @@index([status, createdAt(sort: Desc)]) // For status filtering + date sorting
+  @@index([type, createdAt(sort: Desc)]) // For type filtering + date sorting  
+  @@index([budget]) // For budget range filtering
+  @@index([location]) // For location filtering
+  @@index([createdById]) // For creator filtering
+  @@index([title]) // For search functionality
+  @@index([createdAt(sort: Desc)]) // Default sorting optimization
+  @@index([startDate(sort: Desc)]) // For project date sorting
 }
 
 model User {
@@ -114,7 +114,7 @@ model User {
   projects                 Project[]
   RefreshTokens            RefreshToken[]
   subscription             Subscription?
-
+  payments                 Payment[]
 
   @@index([email, role, userAccountId])
 }
@@ -198,30 +198,36 @@ model MessageRead {
 }
 
 model Subscription {
-  id  String @id @default(cuid())
-  userId String  @unique
-  createdAt               DateTime          @default(now())
-  updatedAt               DateTime          @updatedAt
-  user                    User              @relation(fields: [userId], references: [id], onDelete: Cascade)
-  payments                Payment[]
+  id        String    @id @default(cuid())
+  userId    String    @unique
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  payments  Payment[]
 
   @@index([userId])
-  
 }
 
 model Payment {
-  id                 String        @id @default(cuid())
-  subscriptionId     String    
-  currency           String        @default("NGN")
-  status             PaymentStatus
-  channel            String?       // card, bank, ussd, etc.
-  cardType           String?       // visa, mastercard, verve
-  bank               String?       // For bank transfers
-  description        String?
-  paidAt             DateTime?
-  createdAt          DateTime      @default(now())
-  paystackReference  String        @unique
-  subscription       Subscription @relation(fields:[subscriptionId], references: [id], onDelete: Cascade)
+  id                String        @id @default(cuid())
+  userId            String
+  paystackReference String        @unique
+  amount            Int // Amount in kobo
+  currency          String        @default("NGN")
+  status            PaymentStatus @default(PENDING)
+  channel           String? // card, bank, ussd
+  cardType          String? // visa, mastercard, verve
+  description       String?
+  paidAt            DateTime?
+  createdAt         DateTime      @default(now())
+
+  user           User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  subscription   Subscription? @relation(fields: [subscriptionId], references: [id])
+  subscriptionId String?
+
+  @@index([userId])
+  @@index([paystackReference])
+  @@index([status])
 }
 
 enum UserRole {
@@ -271,9 +277,9 @@ enum MessageType {
 enum SubscriptionStatus {
   ACTIVE
   INACTIVE
-  NON_RENEWING  // Canceled but still valid until period end
-  ATTENTION     // Payment failed, needs attention
-  COMPLETED     // Subscription ended
+  NON_RENEWING // Canceled but still valid until period end
+  ATTENTION // Payment failed, needs attention
+  COMPLETED // Subscription ended
 }
 
 enum PaymentStatus {
