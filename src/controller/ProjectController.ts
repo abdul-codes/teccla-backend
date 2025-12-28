@@ -3,8 +3,8 @@ import { z } from "zod";
 import { prisma } from "../utils/db";
 import {
   CreateProjectInput,
-  createProjectSchema,
   UpdateProjectInput,
+  ProjectQueryInput,
 } from "../validation/project";
 import { asyncMiddleware } from "../middleware/asyncMiddleware";
 import { getStorageProvider } from "../storage";
@@ -18,60 +18,121 @@ import { AssetType, Project } from "../../prisma/generated/prisma/client";
 //   }
 // }
 
-export const getAllProjects = asyncMiddleware(
+export const getFilteredProjects = asyncMiddleware(
   async (req: Request, res: Response) => {
     try {
-      // Parse pagination parameters
-      const page = parseInt(req.query.page as string) || 1;
-      const limit = parseInt(req.query.limit as string) || 10;
+      // 1. Parse and validate query parameters
+      const {
+        page,
+        limit,
+        search,
+        status,
+        type,
+        budgetMin,
+        budgetMax,
+        dateFrom,
+        dateTo,
+        location,
+        sortBy,
+        sortOrder,
+        createdBy
+      } = req.query as unknown as ProjectQueryInput;
+
       const skip = (page - 1) * limit;
 
-      // Validate pagination parameters
-      if (page < 1) {
-        return res.status(400).json({
-          success: false,
-          message: "Page must be greater than 0",
-        });
-      }
-      if (limit < 1 || limit > 100) {
-        return res.status(400).json({
-          success: false,
-          message: "Limit must be between 1 and 100",
-        });
+      // 2. Build dynamic where clause for filtering
+      const where: any = {};
+
+      // Search filter (title + description)
+      if (search) {
+        where.OR = [
+          { title: { contains: search, mode: 'insensitive' } },
+          { description: { contains: search, mode: 'insensitive' } }
+        ];
       }
 
-      // Get total count for pagination metadata
-      const total = await prisma.project.count();
+      // Individual filters
+      if (status) where.status = status;
+      if (type) where.type = type;
+      if (location) where.location = { contains: location, mode: 'insensitive' };
+      if (createdBy) where.createdById = createdBy;
 
-      // Get paginated projects
-      const projects = await prisma.project.findMany({
-        skip,
-        take: limit,
-        include: {
-          createdBy: {
-            select: {
-              id: true,
-              firstName: true,
-              lastName: true,
-              email: true,
+      // Budget range filter
+      if (budgetMin || budgetMax) {
+        where.budget = {};
+        if (budgetMin) where.budget.gte = budgetMin;
+        if (budgetMax) where.budget.lte = budgetMax;
+      }
+
+      // Date range filter
+      if (dateFrom || dateTo) {
+        where.createdAt = {};
+        if (dateFrom) where.createdAt.gte = new Date(dateFrom);
+        if (dateTo) where.createdAt.lte = new Date(dateTo);
+      }
+
+      // 3. Execute optimized Prisma query
+      const [projects, total] = await Promise.all([
+        prisma.project.findMany({
+          where,
+          skip,
+          take: limit,
+          include: {
+            createdBy: {
+              select: {
+                id: true,
+                firstName: true,
+                lastName: true,
+                email: true,
+              },
             },
           },
-        },
-        orderBy: {
-          createdAt: "desc",
-        },
-      });
+          orderBy: {
+            [sortBy]: sortOrder,
+          },
+        }),
+        prisma.project.count({ where }),
+      ]);
 
-      // Calculate pagination metadata
+      // 4. Add row numbers and format budget
+      const projectsWithNumbers = projects.map((project, index) => ({
+        ...project,
+        rowNumber: skip + index + 1,
+        budget: Number(project.budget.toFixed(2)), // Format to 2 decimal places
+      }));
+
+      // 5. Calculate pagination metadata
       const totalPages = Math.ceil(total / limit);
       const hasNextPage = page < totalPages;
       const hasPrevPage = page > 1;
 
+      // 6. Calculate statistics
+      const statistics = {
+        totalBudget: projects.reduce((sum, p) => sum + p.budget, 0),
+        averageBudget: projects.length > 0 ? projects.reduce((sum, p) => sum + p.budget, 0) / projects.length : 0,
+        statusCounts: {
+          PLANNING: projects.filter(p => p.status === 'PLANNING').length,
+          IN_PROGRESS: projects.filter(p => p.status === 'IN_PROGRESS').length,
+          COMPLETED: projects.filter(p => p.status === 'COMPLETED').length,
+        },
+        typeCounts: {
+          RESIDENTIAL: projects.filter(p => p.type === 'RESIDENTIAL').length,
+          COMMERCIAL: projects.filter(p => p.type === 'COMMERCIAL').length,
+          INDUSTRIAL: projects.filter(p => p.type === 'INDUSTRIAL').length,
+          INFRASTRUCTURE: projects.filter(p => p.type === 'INFRASTRUCTURE').length,
+          RENOVATION: projects.filter(p => p.type === 'RENOVATION').length,
+          MAINTENANCE: projects.filter(p => p.type === 'MAINTENANCE').length,
+          CONSULTING: projects.filter(p => p.type === 'CONSULTING').length,
+          OTHER: projects.filter(p => p.type === 'OTHER').length,
+        }
+      };
+
+      // 7. Return enhanced response
       return res.status(200).json({
         success: true,
         message: "Projects retrieved successfully",
         data: {
-          projects,
+          projects: projectsWithNumbers,
           pagination: {
             currentPage: page,
             totalPages,
@@ -80,6 +141,28 @@ export const getAllProjects = asyncMiddleware(
             hasNextPage,
             hasPrevPage,
           },
+          filters: {
+            applied: {
+              search,
+              status,
+              type,
+              budgetMin,
+              budgetMax,
+              dateFrom,
+              dateTo,
+              location,
+              createdBy
+            },
+            sorting: {
+              sortBy,
+              sortOrder
+            }
+          },
+          statistics: {
+            ...statistics,
+            totalBudget: Number(statistics.totalBudget.toFixed(2)),
+            averageBudget: Number(statistics.averageBudget.toFixed(2)),
+          }
         },
       });
     } catch (error) {
