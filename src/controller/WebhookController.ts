@@ -9,7 +9,8 @@ import { verifyWebhookSignature } from '../utils/paystack';
 export const handlePaystackWebhook = async (req: Request, res: Response) => {
     try {
         const signature = req.headers['x-paystack-signature'] as string;
-        const rawBody = JSON.stringify(req.body);
+        // @ts-ignore
+        const rawBody = req.rawBody?.toString() || JSON.stringify(req.body);
 
         if (!verifyWebhookSignature(signature, rawBody)) {
             console.warn('Invalid webhook signature received');
