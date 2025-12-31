@@ -6,15 +6,16 @@ import {
     generateReference,
 } from '../utils/paystack';
 import { asyncMiddleware } from '../middleware/asyncMiddleware';
+import {
+    FIXED_PAYMENT_AMOUNT_KOBO,
+    FIXED_PAYMENT_DESCRIPTION,
+} from '../config/paymentConfig';
 
-/**
- * Initialize  payment
- */
+// Initialize payment with fixed amount
 export const initializePayment = asyncMiddleware(
     async (req: Request, res: Response) => {
         try {
             const userId = req.user!.id;
-            const { amount, description } = req.body;
 
             const user = await prisma.user.findUnique({
                 where: { id: userId },
@@ -29,22 +30,21 @@ export const initializePayment = asyncMiddleware(
             }
 
             const reference = generateReference();
-            const amountInKobo = Math.round(amount * 100);
             const callbackUrl = `${process.env.FRONTEND_URL}/payment/verify`;
 
             await prisma.payment.create({
                 data: {
                     userId,
                     paystackReference: reference,
-                    amount: amountInKobo,
-                    description: description || 'Payment',
+                    amount: FIXED_PAYMENT_AMOUNT_KOBO,
+                    description: FIXED_PAYMENT_DESCRIPTION,
                     status: 'PENDING',
                 },
             });
 
             const paystackData = await initializeTransaction(
                 user.email,
-                amountInKobo,
+                FIXED_PAYMENT_AMOUNT_KOBO,
                 reference,
                 callbackUrl
             );
@@ -85,6 +85,14 @@ export const verifyPayment = asyncMiddleware(
                 return res.status(404).json({
                     success: false,
                     message: 'Payment not found',
+                });
+            }
+
+            // Security check: Ensure user owns the payment
+            if (payment.userId !== req.user!.id) {
+                return res.status(403).json({
+                    success: false,
+                    message: 'Unauthorized access to payment',
                 });
             }
 
