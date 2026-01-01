@@ -20,7 +20,7 @@ export const handlePaystackWebhook = async (req: Request, res: Response) => {
         const event = req.body;
         console.log(`Webhook received: ${event.event}`);
 
-        if (event.event === 'charge.success') {
+        if (event.event === 'charge.success' || event.event === 'charge.failed') {
             const { reference, status, channel, authorization, paid_at } = event.data;
 
             await prisma.payment.updateMany({
@@ -33,7 +33,7 @@ export const handlePaystackWebhook = async (req: Request, res: Response) => {
                 },
             });
 
-            console.log(`Payment ${reference} updated via webhook`);
+            console.log(`Payment ${reference} updated to ${status} via webhook`);
         }
 
         return res.sendStatus(200);
