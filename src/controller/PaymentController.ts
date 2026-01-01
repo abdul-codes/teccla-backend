@@ -30,7 +30,7 @@ export const initializePayment = asyncMiddleware(
             }
 
             const reference = generateReference();
-            const callbackUrl = `${process.env.FRONTEND_URL}/payment/verify`;
+            const callbackUrl = `${(process.env.FRONTEND_URL || 'http://localhost:5173').replace(/\/$/, '')}/payment/verify`;
 
             await prisma.payment.create({
                 data: {
