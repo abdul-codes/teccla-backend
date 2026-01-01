@@ -10,6 +10,8 @@ import userRoutes from "./routes/UserRoutes";
 import userProfileRoutes from "./routes/UserProfileRoutes";
 import projectRoutes from "./routes/ProjectRoutes";
 import chatRoutes from "./routes/chat/ChatRoutes";
+import paymentRoutes from "./routes/PaymentRoutes";
+import webhookRoutes from "./routes/WebhookRoutes";
 import { initializeSocket } from "./socket/socketServer";
 import Logger from "./utils/logger";
 
@@ -17,8 +19,15 @@ import Logger from "./utils/logger";
 const app = express();
 const server = createServer(app);
 
+// Enable trust proxy for ngrok and production load balancers
+app.set('trust proxy', 1);
+
 app.use(compression());
-app.use(express.json());
+app.use(express.json({
+  verify: (req: any, _res, buf) => {
+    req.rawBody = buf;
+  }
+}));
 app.use(express.urlencoded({ extended: true }));
 
 const corsOptions = {
@@ -49,12 +58,21 @@ app.use("/api/users/profile", userProfileRoutes); // Must be BEFORE /api/users
 app.use("/api/users", userRoutes);
 app.use("/api/projects", projectRoutes);
 app.use("/api/chat", chatRoutes);
+app.use("/api/payments", paymentRoutes);
+app.use("/api/webhooks", webhookRoutes);
+
+// Fix for Paystack redirecting to backend instead of frontend
+app.get("/payment/verify", (req, res) => {
+  const reference = req.query.reference || req.query.trxref;
+  const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:5173';
+  res.redirect(`${frontendUrl.replace(/\/$/, '')}/payment/verify?reference=${reference}`);
+});
 
 app.get("/api/test", async (_req: Request, res: Response) => {
   res.json({ message: "hello and welcome back" });
 });
 
-const PORT = process.env.PORT || 7000;
+const PORT = process.env.PORT || 8000;
 
 // Initialize Socket.io
 initializeSocket(server);
