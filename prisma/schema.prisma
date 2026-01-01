@@ -26,6 +26,18 @@ model OtpAttempts {
   User     User     @relation(fields: [userId], references: [id])
 }
 
+model PasswordResetToken {
+  id        String   @id @default(cuid())
+  token     String   @unique
+  userId    String
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([token])
+  @@index([userId])
+}
+
 model RefreshToken {
   id        String   @id @default(cuid())
   token     String   @unique
@@ -102,6 +114,7 @@ model User {
   updatedAt                DateTime                  @updatedAt
   lastLogin                DateTime?
   loginAttempts            Int                       @default(0)
+  lockoutUntil            DateTime?
   emailVerified            DateTime?
   userAccountId            String?                   @unique
   assets                   Asset[]
@@ -113,6 +126,7 @@ model User {
   OtpVerification          OtpVerification[]
   projects                 Project[]
   RefreshTokens            RefreshToken[]
+  passwordResetTokens      PasswordResetToken[]
   subscription             Subscription?
   payments                 Payment[]
 
