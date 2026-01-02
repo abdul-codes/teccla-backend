@@ -24,7 +24,7 @@ interface RegisterUserBody {
 }
 
 const MAX_ATTEMPTS = 5;
-const LOCK_TIME = 15 * 60 * 1000; // 15 minutes
+const LOCK_TIME_MS = 15 * 60 * 1000; // 15 minutes in milliseconds
 
 export const registerUser = asyncMiddleware(
   async (req: Request, res: Response) => {
@@ -91,7 +91,8 @@ export const registerUser = asyncMiddleware(
       });
 
       try {
-        await sendOTP(email, otp);
+        const userName = `${newUser.firstName} ${newUser.lastName}`;
+        await sendOTP(email, otp, userName);
         res.status(201).json({
           message: "Registration successful. Please check your email for OTP verification.",
           user: {
@@ -163,19 +164,52 @@ export const loginUser = asyncMiddleware(
         });
       }
 
-      // Add before password check
-      if (user.loginAttempts >= MAX_ATTEMPTS) {
+      // Check if user is currently locked out
+      if (user.lockoutUntil && new Date() < user.lockoutUntil) {
+        const remainingMinutes = Math.ceil(
+          (user.lockoutUntil.getTime() - Date.now()) / 60000
+        );
         return res.status(429).json({
-          message: "Account locked. Please reset your password",
+          message: `Account locked. Please try again in ${remainingMinutes} minutes`,
+          remainingMinutes,
+          lockoutUntil: user.lockoutUntil,
         });
       }
+
+      // Auto-unlock if lockout time has expired
+      if (user.lockoutUntil && new Date() >= user.lockoutUntil) {
+        await prisma.user.update({
+          where: { id: user.id },
+          data: { loginAttempts: 0, lockoutUntil: null },
+        });
+      }
+
       // Verify password
       const isMatch = await bcrypt.compare(password, user.password);
       if (!isMatch) {
         // Increment login attempts
+        const newAttempts = user.loginAttempts + 1;
+
+        if (newAttempts >= MAX_ATTEMPTS) {
+          // Locks account
+          await prisma.user.update({
+            where: { id: user.id },
+            data: {
+              loginAttempts: newAttempts,
+              lockoutUntil: new Date(Date.now() + LOCK_TIME_MS),
+              lastLogin: new Date(),
+            },
+          });
+
+          return res.status(429).json({
+            message: `Account locked due to too many failed attempts. Please try again in 15 minutes`,
+            lockoutMinutes: 15,
+          });
+        }
+
         await prisma.user.update({
           where: { id: user.id },
-          data: { loginAttempts: { increment: 1 }, lastLogin: new Date() },
+          data: { loginAttempts: newAttempts, lastLogin: new Date() },
         });
 
         return res.status(400).json({
@@ -188,11 +222,12 @@ export const loginUser = asyncMiddleware(
         return res.status(403).json({ message: "Email Verification required" });
       }
 
-      // Reset login attempts
+      // Reset login attempts and clear lockout
       await prisma.user.update({
         where: { id: user.id },
         data: {
           loginAttempts: 0,
+          lockoutUntil: null,
           lastLogin: new Date(),
         },
       });
