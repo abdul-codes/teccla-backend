@@ -46,3 +46,45 @@ export const validateVerifyOtp = [
     handleValidationErrors
 ]
 
+export const forgotPasswordValidation = [
+  body("email")
+    .isEmail()
+    .normalizeEmail()
+    .withMessage("Valid email is required"),
+  handleValidationErrors
+];
+
+export const resetPasswordValidation = [
+  body("token")
+    .notEmpty()
+    .withMessage("Reset token is required"),
+  body("newPassword")
+    .isLength({ min: 8 })
+    .withMessage("Password must be at least 8 characters long")
+    .matches(/^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[@$!%*?&])[A-Za-z\d@$!%*?&]{8,}$/)
+    .withMessage("Password must include uppercase, lowercase, number, and special character"),
+  body("confirmPassword")
+    .notEmpty()
+    .withMessage("Please confirm your password")
+    .custom((value, { req }) => value === req.body.newPassword)
+    .withMessage("Passwords do not match"),
+  handleValidationErrors
+];
+
+export const changePasswordValidation = [
+  body("currentPassword")
+    .notEmpty()
+    .withMessage("Current password is required"),
+  body("newPassword")
+    .isLength({ min: 8 })
+    .withMessage("Password must be at least 8 characters long")
+    .matches(/^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[@$!%*?&])[A-Za-z\d@$!%*?&]{8,}$/)
+    .withMessage("Password must include uppercase, lowercase, number, and special character"),
+  body("confirmPassword")
+    .notEmpty()
+    .withMessage("Please confirm your password")
+    .custom((value, { req }) => value === req.body.newPassword)
+    .withMessage("Passwords do not match"),
+  handleValidationErrors
+];
+
