@@ -1,6 +1,7 @@
 import { Request, Response } from "express";
 import { asyncMiddleware } from "../middleware/asyncMiddleware";
 import { prisma } from "../utils/db";
+import bcrypt from "bcryptjs";
 
 // Get current user profile
 export const getCurrentUser = asyncMiddleware(
@@ -306,4 +307,49 @@ export const searchUsers = asyncMiddleware(
       res.status(500).json({ message: "Internal server error" });
     }
   },
+);
+
+// Reset user lockout (admin only)
+export const resetUserLockout = asyncMiddleware(
+  async (req: Request, res: Response) => {
+    try {
+      const { id } = req.params;
+      const currentUserId = req.user?.id;
+      const currentUserRole = req.user?.role;
+
+      // Only admins can reset lockouts
+      if (currentUserRole !== "ADMIN") {
+        return res
+          .status(403)
+          .json({
+            message: "Access denied. Admins only.",
+          });
+      }
+
+      // Check if user exists
+      const user = await prisma.user.findUnique({
+        where: { id },
+      });
+
+      if (!user) {
+        return res.status(404).json({ message: "User not found" });
+      }
+
+      // Reset lockout
+      await prisma.user.update({
+        where: { id },
+        data: {
+          loginAttempts: 0,
+          lockoutUntil: null,
+        },
+      });
+
+      res.status(200).json({
+        message: `User lockout reset for ${user.email}`,
+      });
+    } catch (error) {
+      console.error("Reset user lockout error:", error);
+      res.status(500).json({ message: "Internal server error" });
+    }
+  }
 );
