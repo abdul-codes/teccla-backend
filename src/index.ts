@@ -1,6 +1,8 @@
 import express, { Request, Response } from "express";
 import { createServer } from "http";
 import cors from "cors";
+import helmet from "helmet";
+import cookieParser from "cookie-parser";
 import "dotenv/config";
 import compression from "compression";
 import path from "path";
@@ -15,12 +17,14 @@ import webhookRoutes from "./routes/WebhookRoutes";
 import { initializeSocket } from "./socket/socketServer";
 import Logger from "./utils/logger";
 
-
 const app = express();
 const server = createServer(app);
 
 // Enable trust proxy for ngrok and production load balancers
 app.set('trust proxy', 1);
+
+app.use(helmet());
+app.use(cookieParser());
 
 app.use(compression());
 app.use(express.json({
@@ -31,6 +35,7 @@ app.use(express.json({
 app.use(express.urlencoded({ extended: true }));
 
 const corsOptions = {
+
   origin: process.env.FRONTEND_URL || 'http://localhost:5173',
   credentials: true, // Enable credentials (cookies, authorization headers, etc.)
   optionsSuccessStatus: 200 // Some legacy browsers (IE11, various SmartTVs) choke on 204
