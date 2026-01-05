@@ -4,7 +4,7 @@ import {
     verifyPayment,
     getPaymentHistory,
 } from '../controller/PaymentController';
-import { authenticateUser } from '../middleware/authMIddleware';
+import { authenticateUser } from '../middleware/authMiddleware';
 
 const router = Router();
 
