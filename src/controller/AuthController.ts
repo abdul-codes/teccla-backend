@@ -14,7 +14,7 @@ import { sendOTP } from "../utils/Mail";
 import { UserRole } from "../../prisma/generated/prisma/client";
 import Logger from "../utils/logger";
 
-const REFRESH_TOKEN = process.env.REFRESH_TOKEN as string;
+const REFRESH_TOKEN = process.env.JWT_REFRESH_SECRET as string;
 
 interface RegisterUserBody {
   email: string;
