@@ -31,9 +31,11 @@ export const loginValidation = [
         .notEmpty()
         .isLength({ min: 8 })
         .withMessage('Password must be at least 8 characters long'),
-    // .matches(/^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[@$!%*?&])[A-Za-z\d@$!%*?&]{8,}$/)
-    // .withMessage('Password must include uppercase, lowercase, number, and special character'),
-    //   body('').notEmpty().withMessage('First name is required'),
+
+    // Note: Password complexity validation is intentionally NOT enforced at login.
+    // Users should be able to login with any password that was accepted during registration.
+    // Password complexity is enforced during registration and password change flows.
+
     handleValidationErrors
 ]
 export const validateResendOtp = [
