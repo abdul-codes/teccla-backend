@@ -1,5 +1,5 @@
 import { Router } from "express";
-import { authenticateUser } from "../middleware/authMIddleware";
+import { authenticateUser } from "../middleware/authMiddleware";
 import {
   createProject,
   deleteProject,
