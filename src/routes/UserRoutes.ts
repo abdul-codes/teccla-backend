@@ -1,5 +1,5 @@
 import { Router } from "express";
-import { authenticateUser, authorizeRoles } from "../middleware/authMIddleware";
+import { authenticateUser, authorizeRoles } from "../middleware/authMiddleware";
 import { getAllUsers, getUserById, updateUser, deleteUser, getCurrentUser, searchUsers, resetUserLockout } from "../controller/UserController";
 import { changePassword } from "../controller/PasswordChangeController";
 import { UserRole } from "../../prisma/generated/prisma/client";
