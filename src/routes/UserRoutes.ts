@@ -4,6 +4,8 @@ import { getAllUsers, getUserById, updateUser, deleteUser, getCurrentUser, searc
 import { changePassword } from "../controller/PasswordChangeController";
 import { UserRole } from "../../prisma/generated/prisma/client";
 import { changePasswordValidation } from "../validation/validation";
+import { validateSchema } from "../middleware/validateMiddleware";
+import { updateUserSchema, searchUsersSchema } from "../validation/user";
 
 const router = Router()
 
@@ -13,10 +15,10 @@ router.delete("/:id", authenticateUser, authorizeRoles(UserRole.ADMIN), deleteUs
 router.post("/:id/reset-lockout", authenticateUser, authorizeRoles(UserRole.ADMIN), resetUserLockout)
 
 // User routes (authenticated users)
-router.get("/search", authenticateUser, searchUsers)
+router.get("/search", authenticateUser, validateSchema(searchUsersSchema, 'query'), searchUsers)
 router.get("/profile", authenticateUser, getCurrentUser)
 router.get("/:id", authenticateUser, getUserById)
-router.put("/:id", authenticateUser, updateUser)
+router.put("/:id", authenticateUser, validateSchema(updateUserSchema), updateUser)
 router.post("/change-password", authenticateUser, changePasswordValidation, changePassword)
 
 export default router;
