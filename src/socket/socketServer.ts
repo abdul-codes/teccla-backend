@@ -9,7 +9,7 @@ import Logger from '../utils/logger';
 
 // Environment validation
 function validateEnvironment() {
-  const required = ['ACCESS_TOKEN'];
+  const required = ['JWT_ACCESS_SECRET'];
   const missing = required.filter(key => !process.env[key]);
 
   if (missing.length > 0) {
@@ -41,25 +41,28 @@ export function initializeSocket(server: HTTPServer) {
       const token = socket.handshake.auth.token;
 
       if (!token) {
-        return next(new Error('Authentication token required'));
+        return next(new Error('Authentication failed'));
       }
 
-      const decoded = jwt.verify(token, process.env.ACCESS_TOKEN!) as any;
+      const decoded = jwt.verify(token, process.env.JWT_ACCESS_SECRET!) as any;
 
-      // Get user from database
-      const user = await prisma.user.findUnique({
-        where: { id: decoded.id },
-        select: {
-          id: true,
-          firstName: true,
-          lastName: true,
-          email: true,
-          profilePicture: true
-        }
-      });
+      // Use Promise.all to prevent timing differences
+      const [user] = await Promise.all([
+        prisma.user.findUnique({
+          where: { id: decoded.id },
+          select: {
+            id: true,
+            firstName: true,
+            lastName: true,
+            email: true,
+            profilePicture: true
+          }
+        })
+      ]);
 
       if (!user) {
-        return next(new Error('User not found'));
+        // Use same error message as invalid token to prevent information leakage
+        return next(new Error('Authentication failed'));
       }
 
       socket.user = {
@@ -72,7 +75,8 @@ export function initializeSocket(server: HTTPServer) {
       next();
     } catch (error) {
       Logger.error('Socket authentication error:', error);
-      return next(new Error('Invalid authentication token'));
+      // Single generic error message for all auth failures to prevent timing attacks
+      return next(new Error('Authentication failed'));
     }
   });
 
@@ -232,22 +236,22 @@ export function initializeSocket(server: HTTPServer) {
           timestamp: message.createdAt.toISOString()
         });
 
-        console.log(`Message sent in conversation ${conversationId} by ${socket.user?.firstName}`);
+        Logger.info(`Message sent in conversation ${conversationId} by ${socket.user?.firstName}`);
 
       } catch (error) {
-        console.error('Error sending message:', error);
+        Logger.error('Error sending message:', error);
         socket.emit('error', { message: 'Failed to send message' });
       }
     });
 
     // Disconnect handler
     socket.on('disconnect', (reason) => {
-      console.log(`User disconnected: ${socket.user?.firstName} (${socket.id}) - Reason: ${reason}`);
+      Logger.info(`User disconnected: ${socket.user?.firstName} (${socket.id}) - Reason: ${reason}`);
     });
 
     // Error handler
     socket.on('error', (error) => {
-      console.error('Socket error:', error);
+      Logger.error('Socket error:', error);
     });
   });
 
