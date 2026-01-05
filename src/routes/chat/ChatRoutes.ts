@@ -1,5 +1,5 @@
 import { Router } from 'express';
-import { authenticateUser } from '../../middleware/authMIddleware';
+import { authenticateUser } from '../../middleware/authMiddleware';
 import { isConversationParticipant, isConversationParticipantFromBody, canManageConversation, canEditMessage } from '../../middleware/chatMiddleware';
 import { chatRateLimiter } from '../../middleware/simpleChatRateLimit';
 import { createConversationValidation, addParticipantValidation, updateConversationValidation } from '../../validation/chat/conversation';
@@ -51,7 +51,7 @@ router.post('/upload', uploadRateLimiter, uploadChatAttachmentMiddleware, upload
 
 
 // Message routes
-router.post('/messages', 
+router.post('/messages',
   chatRateLimiter,
   sendMessageValidation,
   isConversationParticipantFromBody,
