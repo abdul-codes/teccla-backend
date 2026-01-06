@@ -5,7 +5,6 @@ generator client {
 
 datasource db {
   provider = "postgresql"
-  // url      = env("TEST_DATABASE_URL")
 }
 
 model OtpVerification {
@@ -57,30 +56,74 @@ model Asset {
 }
 
 model Project {
-  id          String        @id @unique @default(cuid())
-  title       String        @unique
-  description String
-  location    String
-  budget      Float
-  type        ProjectType   @default(COMMERCIAL)
-  status      ProjectStatus
-  startDate   DateTime?
-  finishDate  DateTime?
-  createdAt   DateTime      @default(now())
-  updatedAt   DateTime      @updatedAt
-  createdById String
-  asset       Asset[]
-  createdBy   User          @relation(fields: [createdById], references: [id])
+  id                         String        @id @unique @default(cuid())
+  title                      String        @unique
+  description                String
+  location                   String
+  budget                     Float
+  totalPrice                 Float?
+  downPaymentPercentage      Float         @default(50)
+  completionPercentage       Float         @default(50)
+  type                       ProjectType   @default(COMMERCIAL)
+  status                     ProjectStatus
+  startDate                  DateTime?
+  finishDate                 DateTime?
+  isPublic                   Boolean       @default(true)
+  maxParticipants            Int?
+  createdAt                  DateTime      @default(now())
+  updatedAt                  DateTime      @updatedAt
+  createdById                String
+  asset                      Asset[]
+  createdBy                  User          @relation(fields: [createdById], references: [id])
+  members                    ProjectMember[]
+  projectPayments            ProjectPayment[]
+  conversation               Conversation?
 
   // Performance indexes for filtering and sorting
   @@index([status, createdAt(sort: Desc)]) // For status filtering + date sorting
-  @@index([type, createdAt(sort: Desc)]) // For type filtering + date sorting  
+  @@index([type, createdAt(sort: Desc)]) // For type filtering + date sorting
   @@index([budget]) // For budget range filtering
   @@index([location]) // For location filtering
   @@index([createdById]) // For creator filtering
   @@index([title]) // For search functionality
   @@index([createdAt(sort: Desc)]) // Default sorting optimization
   @@index([startDate(sort: Desc)]) // For project date sorting
+  @@index([isPublic])
+}
+
+model ProjectMember {
+  id           String             @id @default(cuid())
+  projectId    String
+  userId       String
+  role         ProjectMemberRole  @default(MEMBER)
+  status       MemberStatus       @default(JOINED)
+  joinedAt     DateTime           @default(now())
+  project      Project            @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  user         User               @relation(fields: [userId], references: [id], onDelete: Cascade)
+  payments     Payment[]
+
+  @@unique([projectId, userId])
+  @@index([projectId])
+  @@index([userId])
+  @@index([status])
+}
+
+model ProjectPayment {
+  id               String         @id @default(cuid())
+  projectId        String
+  milestoneType    MilestoneType
+  requiredAmount   Float
+  totalCollected   Float          @default(0)
+  numberOfPayments Int            @default(0)
+  status           MilestoneStatus @default(PENDING)
+  createdAt        DateTime       @default(now())
+  updatedAt        DateTime       @updatedAt
+  project          Project        @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  payments         Payment[]
+
+  @@unique([projectId, milestoneType])
+  @@index([projectId])
+  @@index([status])
 }
 
 model User {
@@ -113,8 +156,8 @@ model User {
   OtpVerification          OtpVerification[]
   projects                 Project[]
   RefreshTokens            RefreshToken[]
-  subscription             Subscription?
   payments                 Payment[]
+  projectMembers           ProjectMember[]
 
   @@index([email, role, userAccountId])
 }
@@ -126,11 +169,13 @@ model Conversation {
   isGroup      Boolean                   @default(false)
   avatar       String?
   createdBy    String
+  projectId    String?                   @unique
   createdAt    DateTime                  @default(now())
   updatedAt    DateTime                  @updatedAt
   creator      User                      @relation("ConversationCreator", fields: [createdBy], references: [id])
   participants ConversationParticipant[]
   messages     Message[]
+  project      Project?                  @relation(fields: [projectId], references: [id])
 
   @@index([createdBy])
   @@index([isGroup])
@@ -197,37 +242,32 @@ model MessageRead {
   @@index([userId, messageId])
 }
 
-model Subscription {
-  id        String    @id @default(cuid())
-  userId    String    @unique
-  createdAt DateTime  @default(now())
-  updatedAt DateTime  @updatedAt
-  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
-  payments  Payment[]
-
-  @@index([userId])
-}
-
 model Payment {
   id                String        @id @default(cuid())
   userId            String
   paystackReference String        @unique
-  amount            Int // Amount in kobo
+  amount            Int
   currency          String        @default("NGN")
   status            PaymentStatus @default(PENDING)
-  channel           String? // card, bank, ussd
-  cardType          String? // visa, mastercard, verve
+  channel           String?
+  cardType          String?
   description       String?
   paidAt            DateTime?
   createdAt         DateTime      @default(now())
+  projectMemberId   String?
+  milestoneType     MilestoneType?
+  projectId         String?
+  projectPaymentId  String?
 
-  user           User          @relation(fields: [userId], references: [id], onDelete: Cascade)
-  subscription   Subscription? @relation(fields: [subscriptionId], references: [id])
-  subscriptionId String?
+  user           User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+  projectMember  ProjectMember?  @relation(fields: [projectMemberId], references: [id])
+  projectPayment ProjectPayment? @relation(fields: [projectPaymentId], references: [id])
 
   @@index([userId])
   @@index([paystackReference])
   @@index([status])
+  @@index([projectMemberId])
+  @@index([projectId])
 }
 
 enum UserRole {
@@ -274,18 +314,33 @@ enum MessageType {
   SYSTEM
 }
 
-enum SubscriptionStatus {
-  ACTIVE
-  INACTIVE
-  NON_RENEWING // Canceled but still valid until period end
-  ATTENTION // Payment failed, needs attention
-  COMPLETED // Subscription ended
-}
-
 enum PaymentStatus {
   SUCCESS
   PENDING
   FAILED
   ABANDONED
   REVERSED
+}
+
+enum ProjectMemberRole {
+  ADMIN
+  MEMBER
+}
+
+enum MemberStatus {
+  JOINED
+  PAID_DOWN
+  PAID_COMPLETION
+  PAID_FULL
+}
+
+enum MilestoneType {
+  DOWN_PAYMENT
+  COMPLETION
+}
+
+enum MilestoneStatus {
+  PENDING
+  PARTIAL
+  FULLY_PAID
 }
