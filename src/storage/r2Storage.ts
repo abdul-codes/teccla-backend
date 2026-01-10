@@ -80,7 +80,10 @@ export class R2Storage implements StorageProvider {
       };
     } catch (error) {
       Logger.error('R2 upload error:', error);
-      throw new Error(`Failed to upload to R2: ${error instanceof Error ? error.message : 'Unknown error'}`);
+      if (error instanceof Error) {
+        throw error;
+      }
+      throw new Error('Failed to upload to R2: Unknown error');
     }
   }
 
