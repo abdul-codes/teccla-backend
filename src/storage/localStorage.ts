@@ -11,15 +11,6 @@ export class LocalStorage implements StorageProvider {
   constructor() {
     this.uploadDir = path.join(__dirname, '../../uploads');
     this.baseUrl = process.env.BACKEND_URL || 'http://localhost:8000';
-    this.ensureUploadDir();
-  }
-
-  private async ensureUploadDir() {
-    try {
-      await fs.access(this.uploadDir);
-    } catch {
-      await fs.mkdir(this.uploadDir, { recursive: true });
-    }
   }
 
   async save(file: Express.Multer.File, folder: string): Promise<StorageResult> {
