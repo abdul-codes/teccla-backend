@@ -185,6 +185,14 @@ export const createProject = asyncMiddleware(
     try {
       const validatedData: CreateProjectInput = req.body;
 
+      const totalPercentage = validatedData.downPaymentPercentage + validatedData.completionPercentage;
+      if (Math.abs(totalPercentage - 100) > 0.01) {
+        return res.status(400).json({
+          success: false,
+          message: "downPaymentPercentage + completionPercentage must equal 100",
+        });
+      }
+
       const existingProject = await prisma.project.findUnique({
         where: { title: validatedData.title },
       });
@@ -299,6 +307,8 @@ export const createProject = asyncMiddleware(
 export const getProjectById = asyncMiddleware(
   async (req: Request, res: Response) => {
     const { id } = req.params;
+    const userId = req.user?.id;
+
     try {
       const project = await prisma.project.findUnique({
         where: { id },
@@ -312,6 +322,9 @@ export const getProjectById = asyncMiddleware(
               email: true,
             },
           },
+          _count: {
+            select: { members: true },
+          },
         },
       });
 
@@ -321,10 +334,63 @@ export const getProjectById = asyncMiddleware(
           .json({ success: false, message: "Project not found" });
       }
 
+      let paymentBreakdown = null;
+      let userStatus = null;
+
+      if (project.totalPrice) {
+        const projectPayments = await prisma.projectPayment.findMany({
+          where: { projectId: id },
+        });
+
+        const downPayment = projectPayments.find(p => p.milestoneType === 'DOWN_PAYMENT');
+        const completionPayment = projectPayments.find(p => p.milestoneType === 'COMPLETION');
+
+        const membersPaidDown = await prisma.projectMember.count({
+          where: {
+            projectId: id,
+            status: { in: ['PAID_DOWN', 'PAID_COMPLETION', 'PAID_FULL'] },
+          },
+        });
+
+        const membersPaidCompletion = await prisma.projectMember.count({
+          where: {
+            projectId: id,
+            status: { in: ['PAID_COMPLETION', 'PAID_FULL'] },
+          },
+        });
+
+        paymentBreakdown = {
+          totalPrice: project.totalPrice,
+          downPaymentAmount: downPayment ? downPayment.requiredAmount : 0,
+          completionAmount: completionPayment ? completionPayment.requiredAmount : 0,
+          membersPaidDown,
+          membersPaidCompletion,
+          totalMembers: project._count.members,
+        };
+      }
+
+      if (userId) {
+        const member = await prisma.projectMember.findUnique({
+          where: {
+            projectId_userId: {
+              userId,
+              projectId: id,
+            },
+          },
+          select: { status: true },
+        });
+
+        userStatus = member?.status || null;
+      }
+
       return res.status(200).json({
         success: true,
         message: "Project retrieved successfully",
-        data: project,
+        data: {
+          ...project,
+          paymentBreakdown,
+          userStatus,
+        },
       });
     } catch (error) {
       return res.status(500).json({
@@ -538,7 +604,6 @@ export const deleteProject = asyncMiddleware(
     const { id } = req.params;
 
     try {
-      // Get project with assets for cleanup
       const projectWithAssets = await prisma.project.findUnique({
         where: { id },
         include: { asset: true }
@@ -551,7 +616,6 @@ export const deleteProject = asyncMiddleware(
         });
       }
 
-      // Authorization check
       if (projectWithAssets.createdById !== req.user!.id && req.user!.role !== "ADMIN") {
         return res.status(403).json({
           success: false,
@@ -559,7 +623,6 @@ export const deleteProject = asyncMiddleware(
         });
       }
 
-      // Clean up storage assets first
       const storage = getStorageProvider();
       const deletePromises = projectWithAssets.asset.map(asset =>
         storage.delete(asset.publicId).catch(err =>
@@ -569,7 +632,6 @@ export const deleteProject = asyncMiddleware(
 
       await Promise.all(deletePromises);
 
-      // Delete project (cascade will handle DB assets)
       await prisma.project.delete({ where: { id } });
 
       return res.status(200).json({
@@ -585,4 +647,330 @@ export const deleteProject = asyncMiddleware(
       });
     }
   },
+);
+
+export const getPublicProjects = asyncMiddleware(
+  async (req: Request, res: Response) => {
+    try {
+      const {
+        page = 1,
+        limit = 10,
+        type,
+        location,
+      } = req.query as unknown as {
+        page: number;
+        limit: number;
+        type?: string;
+        location?: string;
+      };
+
+      const skip = (page - 1) * limit;
+
+      const where: any = {
+        isPublic: true,
+      };
+
+      if (type) where.type = type;
+      if (location) where.location = { contains: location, mode: 'insensitive' };
+
+      const [projects, total] = await Promise.all([
+        prisma.project.findMany({
+          where,
+          skip,
+          take: limit,
+          include: {
+            createdBy: {
+              select: {
+                id: true,
+                firstName: true,
+                lastName: true,
+              },
+            },
+            _count: {
+              select: { members: true },
+            },
+          },
+          orderBy: { createdAt: 'desc' },
+        }),
+        prisma.project.count({ where }),
+      ]);
+
+      const totalPages = Math.ceil(total / limit);
+
+      return res.status(200).json({
+        success: true,
+        message: "Public projects retrieved successfully",
+        data: {
+          projects,
+          pagination: {
+            currentPage: page,
+            totalPages,
+            totalItems: total,
+            itemsPerPage: limit,
+          },
+        },
+      });
+    } catch (error) {
+      console.error("Get public projects error:", error);
+      return res.status(500).json({
+        success: false,
+        message: "Failed to retrieve public projects",
+        error: error instanceof Error ? error.message : "Unknown error",
+      });
+    }
+  }
+);
+
+export const joinProject = asyncMiddleware(
+  async (req: Request, res: Response) => {
+    const { id: projectId } = req.params;
+    const userId = req.user!.id;
+
+    try {
+      const project = await prisma.project.findUnique({
+        where: { id: projectId },
+        select: {
+          id: true,
+          isPublic: true,
+          maxParticipants: true,
+          totalPrice: true,
+          downPaymentPercentage: true,
+          completionPercentage: true,
+          _count: {
+            select: { members: true },
+          },
+        },
+      });
+
+      if (!project) {
+        return res.status(404).json({
+          success: false,
+          message: "Project not found",
+        });
+      }
+
+      if (!project.isPublic) {
+        return res.status(403).json({
+          success: false,
+          message: "This project is private. You need to be invited.",
+        });
+      }
+
+      if (project.maxParticipants && project._count.members >= project.maxParticipants) {
+        return res.status(400).json({
+          success: false,
+          message: "Project has reached maximum number of participants",
+        });
+      }
+
+      const existingMember = await prisma.projectMember.findUnique({
+        where: {
+          projectId_userId: {
+            userId,
+            projectId,
+          },
+        },
+      });
+
+      if (existingMember) {
+        return res.status(400).json({
+          success: false,
+          message: "You are already a member of this project",
+        });
+      }
+
+      if (!project.totalPrice) {
+        return res.status(400).json({
+          success: false,
+          message: "Project pricing not set. Please contact the project administrator.",
+        });
+      }
+
+      const projectMember = await prisma.projectMember.create({
+        data: {
+          projectId,
+          userId,
+          role: 'MEMBER',
+          status: 'JOINED',
+        },
+      });
+
+      const downPaymentAmount = (project.totalPrice * project.downPaymentPercentage) / 100;
+      const completionAmount = (project.totalPrice * project.completionPercentage) / 100;
+
+      return res.status(201).json({
+        success: true,
+        message: "Joined project successfully",
+        data: {
+          projectMember,
+          paymentInstructions: {
+            downPaymentAmount,
+            completionAmount,
+          },
+        },
+      });
+    } catch (error) {
+      console.error("Join project error:", error);
+      return res.status(500).json({
+        success: false,
+        message: "Failed to join project",
+        error: error instanceof Error ? error.message : "Unknown error",
+      });
+    }
+  }
+);
+
+export const getProjectMembers = asyncMiddleware(
+  async (req: Request, res: Response) => {
+    const { id: projectId } = req.params;
+    const requesterId = req.user!.id;
+
+    try {
+      const project = await prisma.project.findUnique({
+        where: { id: projectId },
+        select: { createdById: true },
+      });
+
+      if (!project) {
+        return res.status(404).json({
+          success: false,
+          message: "Project not found",
+        });
+      }
+
+      if (project.createdById !== requesterId && req.user!.role !== 'ADMIN') {
+        return res.status(403).json({
+          success: false,
+          message: "Not authorized to view project members",
+        });
+      }
+
+      const members = await prisma.projectMember.findMany({
+        where: { projectId },
+        include: {
+          user: {
+            select: {
+              id: true,
+              firstName: true,
+              lastName: true,
+              email: true,
+              profilePicture: true,
+            },
+          },
+          payments: {
+            orderBy: { createdAt: 'desc' },
+          },
+        },
+        orderBy: { joinedAt: 'asc' },
+      });
+
+      return res.status(200).json({
+        success: true,
+        message: "Project members retrieved successfully",
+        data: { members },
+      });
+    } catch (error) {
+      console.error("Get project members error:", error);
+      return res.status(500).json({
+        success: false,
+        message: "Failed to retrieve project members",
+        error: error instanceof Error ? error.message : "Unknown error",
+      });
+    }
+  }
+);
+
+export const updateProjectPricing = asyncMiddleware(
+  async (req: Request, res: Response) => {
+    const { id: projectId } = req.params;
+    const { totalPrice, downPaymentPercentage, completionPercentage } = req.body;
+    const requesterId = req.user!.id;
+
+    const totalPercentage = downPaymentPercentage + completionPercentage;
+    if (Math.abs(totalPercentage - 100) > 0.01) {
+      return res.status(400).json({
+        success: false,
+        message: "downPaymentPercentage + completionPercentage must equal 100",
+      });
+    }
+
+    try {
+      const project = await prisma.project.findUnique({
+        where: { id: projectId },
+        select: { createdById: true },
+      });
+
+      if (!project) {
+        return res.status(404).json({
+          success: false,
+          message: "Project not found",
+        });
+      }
+
+      if (project.createdById !== requesterId && req.user!.role !== 'ADMIN') {
+        return res.status(403).json({
+          success: false,
+          message: "Not authorized to update project pricing",
+        });
+      }
+
+      const updatedProject = await prisma.project.update({
+        where: { id: projectId },
+        data: {
+          totalPrice,
+          downPaymentPercentage,
+          completionPercentage,
+        },
+      });
+
+      const downPaymentAmount = (totalPrice * downPaymentPercentage) / 100;
+      const completionAmount = (totalPrice * completionPercentage) / 100;
+
+      await prisma.$transaction([
+        prisma.projectPayment.upsert({
+          where: {
+            projectId_milestoneType: {
+              projectId,
+              milestoneType: 'DOWN_PAYMENT',
+            },
+          },
+          update: { requiredAmount: downPaymentAmount },
+          create: {
+            projectId,
+            milestoneType: 'DOWN_PAYMENT',
+            requiredAmount: downPaymentAmount,
+            status: 'PENDING',
+          },
+        }),
+        prisma.projectPayment.upsert({
+          where: {
+            projectId_milestoneType: {
+              projectId,
+              milestoneType: 'COMPLETION',
+            },
+          },
+          update: { requiredAmount: completionAmount },
+          create: {
+            projectId,
+            milestoneType: 'COMPLETION',
+            requiredAmount: completionAmount,
+            status: 'PENDING',
+          },
+        }),
+      ]);
+
+      return res.status(200).json({
+        success: true,
+        message: "Project pricing updated successfully",
+        data: { project: updatedProject },
+      });
+    } catch (error) {
+      console.error("Update project pricing error:", error);
+      return res.status(500).json({
+        success: false,
+        message: "Failed to update project pricing",
+        error: error instanceof Error ? error.message : "Unknown error",
+      });
+    }
+  }
 );
