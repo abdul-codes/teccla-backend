@@ -72,7 +72,7 @@ export class R2Storage implements StorageProvider {
 
       return {
         url,
-        publicId: key, 
+        publicId: key,
         format,
         bytes: file.size,
         width: undefined,
