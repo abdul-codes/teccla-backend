@@ -3,9 +3,7 @@ FROM node:22-alpine AS builder
 WORKDIR /app
 
 ARG DATABASE_URL="postgresql://dummy:dummy@localhost:5432/dummy"
-ARG TEST_DATABASE_URL="postgresql://dummy:dummy@localhost:5432/dummy_test"
 ENV DATABASE_URL=$DATABASE_URL
-ENV TEST_DATABASE_URL=$TEST_DATABASE_URL
 
 COPY package*.json ./
 

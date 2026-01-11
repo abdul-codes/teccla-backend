@@ -2,6 +2,7 @@ import { Server, Socket } from 'socket.io';
 import { prisma } from '../../utils/db';
 import { sanitizeMessageContent } from '../../utils/contentSanitizer';
 import '../types';
+import Logger from '../../utils/logger';
 
 export async function handleJoinConversation(io: Server, socket: Socket, data: { conversationId: string }) {
   try {
@@ -57,10 +58,10 @@ export async function handleJoinConversation(io: Server, socket: Socket, data: {
       messages: recentMessages.reverse()
     });
 
-    console.log(`User ${socket.user?.firstName} joined conversation ${conversationId}`);
+    Logger.info(`User ${socket.user?.firstName} joined conversation ${conversationId}`);
 
   } catch (error) {
-    console.error('Error joining conversation:', error);
+    Logger.error('Error joining conversation:', error);
     socket.emit('error', { message: 'Failed to join conversation' });
   }
 }
@@ -76,7 +77,7 @@ export async function handleLeaveConversation(io: Server, socket: Socket, data: 
     }
 
     const roomName = `conversation:${conversationId}`;
-    
+
     // Leave the socket room
     socket.leave(roomName);
 
@@ -89,15 +90,15 @@ export async function handleLeaveConversation(io: Server, socket: Socket, data: 
     });
 
     // Send confirmation to the user who left
-    socket.emit('conversation_left', { 
+    socket.emit('conversation_left', {
       conversationId,
       timestamp: new Date().toISOString()
     });
 
-    console.log(`User ${socket.user?.firstName} left conversation ${conversationId}`);
+    Logger.info(`User ${socket.user?.firstName} left conversation ${conversationId}`);
 
   } catch (error) {
-    console.error('Error leaving conversation:', error);
+    Logger.error('Error leaving conversation:', error);
     socket.emit('error', { message: 'Failed to leave conversation' });
   }
 }

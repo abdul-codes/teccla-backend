@@ -3,6 +3,7 @@ import { asyncMiddleware } from "./asyncMiddleware";
 import { prisma } from "../utils/db";
 import { ParticipantRole } from "../../prisma/generated/prisma/client";
 import { getCachedParticipant, setCachedParticipant } from "../utils/simpleCache";
+import Logger from "../utils/logger";
 
 declare global {
   namespace Express {
@@ -69,7 +70,7 @@ export const isConversationParticipant = asyncMiddleware(async (
     req.participant = participant;
     next();
   } catch (error) {
-    console.error("Error checking conversation participation:", error);
+    Logger.error("Error checking conversation participation:", error);
     res.status(500).json({ message: "Server error" });
   }
 });
@@ -123,7 +124,7 @@ export const isConversationParticipantFromBody = asyncMiddleware(async (
     req.participant = participant;
     next();
   } catch (error) {
-    console.error("Error checking conversation participant:", error);
+    Logger.error("Error checking conversation participant:", error);
     res.status(500).json({ message: "Error checking conversation participant" });
   }
 });
@@ -157,7 +158,7 @@ export const canManageConversation = asyncMiddleware(async (
 
     next();
   } catch (error) {
-    console.error("Error checking conversation management permissions:", error);
+    Logger.error("Error checking conversation management permissions:", error);
     res.status(500).json({ message: "Server error" });
   }
 });
@@ -181,7 +182,7 @@ export const canSendMessage = asyncMiddleware(async (
 
     next();
   } catch (error) {
-    console.error("Error checking send message permissions:", error);
+    Logger.error("Error checking send message permissions:", error);
     res.status(500).json({ message: "Server error" });
   }
 });
@@ -227,7 +228,7 @@ export const canEditMessage = asyncMiddleware(async (
 
     next();
   } catch (error) {
-    console.error("Error checking edit message permissions:", error);
+    Logger.error("Error checking edit message permissions:", error);
     res.status(500).json({ message: "Server error" });
   }
 });

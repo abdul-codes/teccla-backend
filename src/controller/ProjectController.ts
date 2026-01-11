@@ -9,6 +9,7 @@ import {
 import { asyncMiddleware } from "../middleware/asyncMiddleware";
 import { getStorageProvider } from "../storage";
 import { AssetType, Project } from "../../prisma/generated/prisma/client";
+import Logger from "../utils/logger";
 
 // interface AuthRequest extends Request {
 //   user?: {
@@ -20,160 +21,153 @@ import { AssetType, Project } from "../../prisma/generated/prisma/client";
 
 export const getFilteredProjects = asyncMiddleware(
   async (req: Request, res: Response) => {
-    try {
-      // 1. Parse and validate query parameters
-      const {
-        page,
-        limit,
-        search,
-        status,
-        type,
-        budgetMin,
-        budgetMax,
-        dateFrom,
-        dateTo,
-        location,
-        sortBy,
-        sortOrder,
-        createdBy
-      } = req.query as unknown as ProjectQueryInput;
+    // 1. Parse and validate query parameters
+    const {
+      page,
+      limit,
+      search,
+      status,
+      type,
+      budgetMin,
+      budgetMax,
+      dateFrom,
+      dateTo,
+      location,
+      sortBy,
+      sortOrder,
+      createdBy
+    } = req.query as unknown as ProjectQueryInput;
 
-      const skip = (page - 1) * limit;
+    const skip = (page - 1) * limit;
 
-      // 2. Build dynamic where clause for filtering
-      const where: any = {};
+    // 2. Build dynamic where clause for filtering
+    const where: any = {};
 
-      // Search filter (title + description)
-      if (search) {
-        where.OR = [
-          { title: { contains: search, mode: 'insensitive' } },
-          { description: { contains: search, mode: 'insensitive' } }
-        ];
-      }
+    // Search filter (title + description)
+    if (search) {
+      where.OR = [
+        { title: { contains: search, mode: 'insensitive' } },
+        { description: { contains: search, mode: 'insensitive' } }
+      ];
+    }
 
-      // Individual filters
-      if (status) where.status = status;
-      if (type) where.type = type;
-      if (location) where.location = { contains: location, mode: 'insensitive' };
-      if (createdBy) where.createdById = createdBy;
+    // Individual filters
+    if (status) where.status = status;
+    if (type) where.type = type;
+    if (location) where.location = { contains: location, mode: 'insensitive' };
+    if (createdBy) where.createdById = createdBy;
 
-      // Budget range filter
-      if (budgetMin || budgetMax) {
-        where.budget = {};
-        if (budgetMin) where.budget.gte = budgetMin;
-        if (budgetMax) where.budget.lte = budgetMax;
-      }
+    // Budget range filter
+    if (budgetMin || budgetMax) {
+      where.budget = {};
+      if (budgetMin) where.budget.gte = budgetMin;
+      if (budgetMax) where.budget.lte = budgetMax;
+    }
 
-      // Date range filter
-      if (dateFrom || dateTo) {
-        where.createdAt = {};
-        if (dateFrom) where.createdAt.gte = new Date(dateFrom);
-        if (dateTo) where.createdAt.lte = new Date(dateTo);
-      }
+    // Date range filter
+    if (dateFrom || dateTo) {
+      where.createdAt = {};
+      if (dateFrom) where.createdAt.gte = new Date(dateFrom);
+      if (dateTo) where.createdAt.lte = new Date(dateTo);
+    }
 
-      // 3. Execute optimized Prisma query
-      const [projects, total] = await Promise.all([
-        prisma.project.findMany({
-          where,
-          skip,
-          take: limit,
-          include: {
-            createdBy: {
-              select: {
-                id: true,
-                firstName: true,
-                lastName: true,
-                email: true,
-              },
+    // 3. Execute optimized Prisma query
+    const [projects, total] = await Promise.all([
+      prisma.project.findMany({
+        where,
+        skip,
+        take: limit,
+        include: {
+          createdBy: {
+            select: {
+              id: true,
+              firstName: true,
+              lastName: true,
+              email: true,
             },
           },
-          orderBy: {
-            [sortBy]: sortOrder,
-          },
-        }),
-        prisma.project.count({ where }),
-      ]);
-
-      // 4. Add row numbers and format budget
-      const projectsWithNumbers = projects.map((project, index) => ({
-        ...project,
-        rowNumber: skip + index + 1,
-        budget: Number(project.budget.toFixed(2)), // Format to 2 decimal places
-      }));
-
-      // 5. Calculate pagination metadata
-      const totalPages = Math.ceil(total / limit);
-      const hasNextPage = page < totalPages;
-      const hasPrevPage = page > 1;
-
-      // 6. Calculate statistics
-      const statistics = {
-        totalBudget: projects.reduce((sum, p) => sum + p.budget, 0),
-        averageBudget: projects.length > 0 ? projects.reduce((sum, p) => sum + p.budget, 0) / projects.length : 0,
-        statusCounts: {
-          PLANNING: projects.filter(p => p.status === 'PLANNING').length,
-          IN_PROGRESS: projects.filter(p => p.status === 'IN_PROGRESS').length,
-          COMPLETED: projects.filter(p => p.status === 'COMPLETED').length,
         },
-        typeCounts: {
-          RESIDENTIAL: projects.filter(p => p.type === 'RESIDENTIAL').length,
-          COMMERCIAL: projects.filter(p => p.type === 'COMMERCIAL').length,
-          INDUSTRIAL: projects.filter(p => p.type === 'INDUSTRIAL').length,
-          INFRASTRUCTURE: projects.filter(p => p.type === 'INFRASTRUCTURE').length,
-          RENOVATION: projects.filter(p => p.type === 'RENOVATION').length,
-          MAINTENANCE: projects.filter(p => p.type === 'MAINTENANCE').length,
-          CONSULTING: projects.filter(p => p.type === 'CONSULTING').length,
-          OTHER: projects.filter(p => p.type === 'OTHER').length,
-        }
-      };
+        orderBy: {
+          [sortBy]: sortOrder,
+        },
+      }),
+      prisma.project.count({ where }),
+    ]);
 
-      // 7. Return enhanced response
-      return res.status(200).json({
-        success: true,
-        message: "Projects retrieved successfully",
-        data: {
-          projects: projectsWithNumbers,
-          pagination: {
-            currentPage: page,
-            totalPages,
-            totalItems: total,
-            itemsPerPage: limit,
-            hasNextPage,
-            hasPrevPage,
+    // 4. Add row numbers and format budget
+    const projectsWithNumbers = projects.map((project, index) => ({
+      ...project,
+      rowNumber: skip + index + 1,
+      budget: Number(project.budget.toFixed(2)), // Format to 2 decimal places
+    }));
+
+    // 5. Calculate pagination metadata
+    const totalPages = Math.ceil(total / limit);
+    const hasNextPage = page < totalPages;
+    const hasPrevPage = page > 1;
+
+    // 6. Calculate statistics
+    const statistics = {
+      totalBudget: projects.reduce((sum, p) => sum + p.budget, 0),
+      averageBudget: projects.length > 0 ? projects.reduce((sum, p) => sum + p.budget, 0) / projects.length : 0,
+      statusCounts: {
+        PLANNING: projects.filter(p => p.status === 'PLANNING').length,
+        IN_PROGRESS: projects.filter(p => p.status === 'IN_PROGRESS').length,
+        COMPLETED: projects.filter(p => p.status === 'COMPLETED').length,
+      },
+      typeCounts: {
+        RESIDENTIAL: projects.filter(p => p.type === 'RESIDENTIAL').length,
+        COMMERCIAL: projects.filter(p => p.type === 'COMMERCIAL').length,
+        INDUSTRIAL: projects.filter(p => p.type === 'INDUSTRIAL').length,
+        INFRASTRUCTURE: projects.filter(p => p.type === 'INFRASTRUCTURE').length,
+        RENOVATION: projects.filter(p => p.type === 'RENOVATION').length,
+        MAINTENANCE: projects.filter(p => p.type === 'MAINTENANCE').length,
+        CONSULTING: projects.filter(p => p.type === 'CONSULTING').length,
+        OTHER: projects.filter(p => p.type === 'OTHER').length,
+      }
+    };
+
+    // 7. Return enhanced response
+    return res.status(200).json({
+      success: true,
+      message: "Projects retrieved successfully",
+      data: {
+        projects: projectsWithNumbers,
+        pagination: {
+          currentPage: page,
+          totalPages,
+          totalItems: total,
+          itemsPerPage: limit,
+          hasNextPage,
+          hasPrevPage,
+        },
+        filters: {
+          applied: {
+            search,
+            status,
+            type,
+            budgetMin,
+            budgetMax,
+            dateFrom,
+            dateTo,
+            location,
+            createdBy
           },
-          filters: {
-            applied: {
-              search,
-              status,
-              type,
-              budgetMin,
-              budgetMax,
-              dateFrom,
-              dateTo,
-              location,
-              createdBy
-            },
-            sorting: {
-              sortBy,
-              sortOrder
-            }
-          },
-          statistics: {
-            ...statistics,
-            totalBudget: Number(statistics.totalBudget.toFixed(2)),
-            averageBudget: Number(statistics.averageBudget.toFixed(2)),
+          sorting: {
+            sortBy,
+            sortOrder
           }
         },
-      });
-    } catch (error) {
-      return res.status(500).json({
-        success: false,
-        message: "Failed to retrieve projects",
-        error: error instanceof Error ? error.message : "Unknown error",
-      });
-    }
+        statistics: {
+          ...statistics,
+          totalBudget: Number(statistics.totalBudget.toFixed(2)),
+          averageBudget: Number(statistics.averageBudget.toFixed(2)),
+        }
+      },
+    });
   },
 );
+
 
 
 
@@ -268,73 +262,59 @@ export const createProject = asyncMiddleware(
         data: projectWithAssets,
       });
     } catch (error: unknown) {
-      console.error("Project creation error:", error);
+      Logger.error("Project creation error:", error);
 
       // Rollback logic
       const storage = getStorageProvider();
       if (project) {
-        await prisma.project.delete({ where: { id: project.id } });
+        await prisma.project.delete({ where: { id: project.id } }).catch(e => Logger.error("Rollback DB delete failed", e));
       }
       for (const publicId of uploadedFileIds) {
-        try {
-          await storage.delete(publicId);
-        } catch (err) {
-          console.error(`Failed to delete file during rollback: ${publicId}`, err);
-        }
+        await storage.delete(publicId).catch(err =>
+          Logger.error(`Failed to delete file during rollback: ${publicId}`, err)
+        );
       }
 
-      return res.status(500).json({
-        success: false,
-        message: "Internal server error. Rolled back project creation.",
-        error: error instanceof Error ? error.message : "Unknown error",
-        details: error, // Include the raw error object to see what it is
-        stack: error instanceof Error ? error.stack : undefined,
-      });
+      throw error;
     }
   },
 );
+
 
 // restrict available file type and size
 
 export const getProjectById = asyncMiddleware(
   async (req: Request, res: Response) => {
     const { id } = req.params;
-    try {
-      const project = await prisma.project.findUnique({
-        where: { id },
-        include: {
-          asset: true,
-          createdBy: {
-            select: {
-              id: true,
-              firstName: true,
-              lastName: true,
-              email: true,
-            },
+    const project = await prisma.project.findUnique({
+      where: { id },
+      include: {
+        asset: true,
+        createdBy: {
+          select: {
+            id: true,
+            firstName: true,
+            lastName: true,
+            email: true,
           },
         },
-      });
+      },
+    });
 
-      if (!project) {
-        return res
-          .status(404)
-          .json({ success: false, message: "Project not found" });
-      }
-
-      return res.status(200).json({
-        success: true,
-        message: "Project retrieved successfully",
-        data: project,
-      });
-    } catch (error) {
-      return res.status(500).json({
-        success: false,
-        message: "Failed to retrieve project",
-        error: error instanceof Error ? error.message : "Unknown error",
-      });
+    if (!project) {
+      return res
+        .status(404)
+        .json({ success: false, message: "Project not found" });
     }
+
+    return res.status(200).json({
+      success: true,
+      message: "Project retrieved successfully",
+      data: project,
+    });
   },
 );
+
 
 export const updateProject = asyncMiddleware(
   async (req: Request, res: Response) => {
@@ -351,11 +331,17 @@ export const updateProject = asyncMiddleware(
       });
 
       if (!existingProject) {
-        throw new Error("Project not found");
+        return res.status(404).json({
+          success: false,
+          message: "Project not found",
+        });
       }
 
       if (existingProject.createdById !== req.user!.id && req.user!.role !== "ADMIN") {
-        throw new Error("Not authorized to update this project");
+        return res.status(403).json({
+          success: false,
+          message: "Not authorized to update this project",
+        });
       }
 
       // 2. Handle new file uploads BEFORE transaction
@@ -481,10 +467,10 @@ export const updateProject = asyncMiddleware(
         Promise.all(
           result.assetsToDelete.map(asset =>
             storage.delete(asset.publicId).catch(err =>
-              console.error(`Failed to delete asset ${asset.publicId}:`, err)
+              Logger.error(`Failed to delete asset ${asset.publicId}:`, err)
             )
           )
-        ).catch(err => console.error("Background asset deletion error:", err));
+        ).catch(err => Logger.error("Background asset deletion error:", err));
       }
 
       return res.status(200).json({
@@ -499,90 +485,61 @@ export const updateProject = asyncMiddleware(
         Promise.all(
           uploadedFileIds.map(publicId =>
             storage.delete(publicId).catch(err =>
-              console.error(`Failed to rollback file ${publicId}:`, err)
+              Logger.error(`Failed to rollback file ${publicId}:`, err)
             )
           )
-        ).catch(err => console.error("Rollback error:", err));
+        ).catch(err => Logger.error("Rollback error:", err));
       }
 
-      if (error instanceof Error) {
-        // Operational errors - Log warning only
-        if (error.message === "Project not found") {
-          console.warn(`Update failed: Project ${id} not found`);
-          return res.status(404).json({
-            success: false,
-            message: "Project not found",
-          });
-        }
-        if (error.message === "Not authorized to update this project") {
-          console.warn(`Update failed: User ${req.user?.id} unauthorized for project ${id}`);
-          return res.status(403).json({
-            success: false,
-            message: "Not authorized to update this project",
-          });
-        }
-      }
-
-      // System errors - Log full error
-      console.error("Project update error:", error);
-      return res.status(500).json({
-        success: false,
-        message: "Internal server error",
-      });
+      throw error;
     }
   },
 );
+
 
 export const deleteProject = asyncMiddleware(
   async (req: Request, res: Response) => {
     const { id } = req.params;
 
-    try {
-      // Get project with assets for cleanup
-      const projectWithAssets = await prisma.project.findUnique({
-        where: { id },
-        include: { asset: true }
-      });
+    // Get project with assets for cleanup
+    const projectWithAssets = await prisma.project.findUnique({
+      where: { id },
+      include: { asset: true }
+    });
 
-      if (!projectWithAssets) {
-        return res.status(404).json({
-          success: false,
-          message: "Project not found"
-        });
-      }
-
-      // Authorization check
-      if (projectWithAssets.createdById !== req.user!.id && req.user!.role !== "ADMIN") {
-        return res.status(403).json({
-          success: false,
-          message: "Not authorized to delete this project",
-        });
-      }
-
-      // Clean up storage assets first
-      const storage = getStorageProvider();
-      const deletePromises = projectWithAssets.asset.map(asset =>
-        storage.delete(asset.publicId).catch(err =>
-          console.error(`Failed to delete asset ${asset.publicId}:`, err)
-        )
-      );
-
-      await Promise.all(deletePromises);
-
-      // Delete project (cascade will handle DB assets)
-      await prisma.project.delete({ where: { id } });
-
-      return res.status(200).json({
-        success: true,
-        message: "Project and assets deleted successfully",
-        data: { deletedAssetsCount: projectWithAssets.asset.length }
-      });
-    } catch (error) {
-      console.error("Project delete error:", error);
-      return res.status(500).json({
+    if (!projectWithAssets) {
+      return res.status(404).json({
         success: false,
-        message: "Internal server error during project deletion",
+        message: "Project not found"
       });
     }
+
+    // Authorization check
+    if (projectWithAssets.createdById !== req.user!.id && req.user!.role !== "ADMIN") {
+      return res.status(403).json({
+        success: false,
+        message: "Not authorized to delete this project",
+      });
+    }
+
+    // Clean up storage assets first
+    const storage = getStorageProvider();
+    const deletePromises = projectWithAssets.asset.map(asset =>
+      storage.delete(asset.publicId).catch(err =>
+        Logger.error(`Failed to delete asset ${asset.publicId}:`, err)
+      )
+    );
+
+    await Promise.all(deletePromises);
+
+    // Delete project (cascade will handle DB assets)
+    await prisma.project.delete({ where: { id } });
+
+    return res.status(200).json({
+      success: true,
+      message: "Project and assets deleted successfully",
+      data: { deletedAssetsCount: projectWithAssets.asset.length }
+    });
   },
 );
+

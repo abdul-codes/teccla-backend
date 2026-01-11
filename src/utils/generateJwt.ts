@@ -3,11 +3,11 @@ import jwt from 'jsonwebtoken';
 
 
 // JWT Configuration
-const ACCESS_TOKEN = process.env.ACCESS_TOKEN;
-const REFRESH_TOKEN = process.env.REFRESH_TOKEN;
+const ACCESS_TOKEN = process.env.JWT_ACCESS_SECRET;
+const REFRESH_TOKEN = process.env.JWT_REFRESH_SECRET;
 
 if (!ACCESS_TOKEN || !REFRESH_TOKEN) {
-  throw new Error('JWT secrets not configured in environment variables');
+  throw new Error('JWT secrets not configured. Required: JWT_ACCESS_SECRET, JWT_REFRESH_SECRET');
 }
 
 // Generate Access Token (1 hour expiry for better UX)

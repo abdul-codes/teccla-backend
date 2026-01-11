@@ -2,6 +2,7 @@ import { Server as SocketIOServer, Socket } from 'socket.io';
 import { createEnhancedPresenceManager } from '../utils/enhancedPresence';
 import { handleJoinConversation, handleLeaveConversation } from './conversationHandlers';
 import '../types';
+import Logger from '../../utils/logger';
 
 // Create a singleton instance that will be initialized with io
 let enhancedPresenceManager: ReturnType<typeof createEnhancedPresenceManager>;
@@ -16,7 +17,7 @@ export function handleEnhancedConnection(io: SocketIOServer, socket: Socket) {
   const userId = socket.user?.id;
   if (!userId) return;
 
-  console.log(`Enhanced connection: ${socket.user?.firstName} ${socket.user?.lastName} (${socket.id})`);
+  Logger.info(`Enhanced connection: ${socket.user?.firstName} ${socket.user?.lastName} (${socket.id})`);
 
   // Add to presence manager
   enhancedPresenceManager.addUser(userId, socket.id);
@@ -50,7 +51,7 @@ export function handleEnhancedConnection(io: SocketIOServer, socket: Socket) {
 
   // Error handler
   socket.on('error', (error) => {
-    console.error('Enhanced socket error:', error);
+    Logger.error('Enhanced socket error:', error);
   });
 
   // Send initial connection status

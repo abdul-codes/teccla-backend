@@ -3,12 +3,13 @@ import jwt from "jsonwebtoken";
 import { asyncMiddleware } from "./asyncMiddleware";
 import { prisma } from "../utils/db";
 import { UserRole } from "../../prisma/generated/prisma/client";
+import Logger from "../utils/logger";
 
 
-const ACCESS_TOKEN = process.env.ACCESS_TOKEN;
+const ACCESS_TOKEN = process.env.JWT_ACCESS_SECRET;
 
 if (!ACCESS_TOKEN) {
-  throw new Error('ACCESS_TOKEN environment variable not configured');
+  throw new Error('JWT_ACCESS_SECRET environment variable not configured');
 }
 
 
@@ -69,7 +70,7 @@ export const authenticateUser = asyncMiddleware(async (
     if (error instanceof jwt.JsonWebTokenError) {
       res.status(401).json({ message: "Invalid or expired access token" });
     } else {
-      console.error("Authentication error:", error);
+      Logger.error("Authentication error:", error);
       res.status(500).json({ message: "Server error during authentication" });
     }
   }

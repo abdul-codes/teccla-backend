@@ -31,9 +31,11 @@ export const loginValidation = [
         .notEmpty()
         .isLength({ min: 8 })
         .withMessage('Password must be at least 8 characters long'),
-    // .matches(/^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[@$!%*?&])[A-Za-z\d@$!%*?&]{8,}$/)
-    // .withMessage('Password must include uppercase, lowercase, number, and special character'),
-    //   body('').notEmpty().withMessage('First name is required'),
+
+    // Note: Password complexity validation is intentionally NOT enforced at login.
+    // Users should be able to login with any password that was accepted during registration.
+    // Password complexity is enforced during registration and password change flows.
+
     handleValidationErrors
 ]
 export const validateResendOtp = [
@@ -45,4 +47,46 @@ export const validateVerifyOtp = [
     body('token').isString().isLength({ min: 6, max: 6 }).withMessage('OTP must be 6 digits'),
     handleValidationErrors
 ]
+
+export const forgotPasswordValidation = [
+  body("email")
+    .isEmail()
+    .normalizeEmail()
+    .withMessage("Valid email is required"),
+  handleValidationErrors
+];
+
+export const resetPasswordValidation = [
+  body("token")
+    .notEmpty()
+    .withMessage("Reset token is required"),
+  body("newPassword")
+    .isLength({ min: 8 })
+    .withMessage("Password must be at least 8 characters long")
+    .matches(/^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[@$!%*?&])[A-Za-z\d@$!%*?&]{8,}$/)
+    .withMessage("Password must include uppercase, lowercase, number, and special character"),
+  body("confirmPassword")
+    .notEmpty()
+    .withMessage("Please confirm your password")
+    .custom((value, { req }) => value === req.body.newPassword)
+    .withMessage("Passwords do not match"),
+  handleValidationErrors
+];
+
+export const changePasswordValidation = [
+  body("currentPassword")
+    .notEmpty()
+    .withMessage("Current password is required"),
+  body("newPassword")
+    .isLength({ min: 8 })
+    .withMessage("Password must be at least 8 characters long")
+    .matches(/^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[@$!%*?&])[A-Za-z\d@$!%*?&]{8,}$/)
+    .withMessage("Password must include uppercase, lowercase, number, and special character"),
+  body("confirmPassword")
+    .notEmpty()
+    .withMessage("Please confirm your password")
+    .custom((value, { req }) => value === req.body.newPassword)
+    .withMessage("Passwords do not match"),
+  handleValidationErrors
+];
 
