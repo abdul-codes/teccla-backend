@@ -23,25 +23,34 @@ export const verifyOtp = asyncMiddleware(async (req: Request, res: Response) => 
   }
 
   // Check if user is locked out from OTP attempts
-  const otpAttempts = await prisma.otpAttempts.findUnique({
-    where: { userId: user.id }
-  });
-
-  if (otpAttempts && otpAttempts.lastTry) {
-    const timeSinceLastTry = Date.now() - otpAttempts.lastTry.getTime();
-
-    if (otpAttempts.attempts >= MAX_OTP_ATTEMPTS && timeSinceLastTry < OTP_LOCK_TIME_MS) {
-      const remainingMinutes = Math.ceil((OTP_LOCK_TIME_MS - timeSinceLastTry) / 60000);
-      return res.status(429).json({
-        error: `Too many failed attempts. Try again in ${remainingMinutes} minutes`
+      const otpAttempts = await prisma.otpAttempts.findUnique({
+        where: { userId: user.id }
       });
-    }
+
+      // Check if user is locked out from OTP attempts
+      const timeSinceLastTry = Date.now() - otpAttempts.lastTry.getTime();
+
+      if (otpAttempts.attempts >= MAX_OTP_ATTEMPTS && timeSinceLastTry < OTP_LOCK_TIME_MS) {
+        const remainingMinutes = Math.ceil((OTP_LOCK_TIME_MS - timeSinceLastTry) / 60000);
+        return res.status(429).json({
+          error: `Too many failed attempts. Try again in ${remainingMinutes} minutes`
+        });
+      }
+
+      // Reset attempts if lockout period has expired
+      if (otpAttempts.attempts >= MAX_OTP_ATTEMPTS && timeSinceLastTry >= OTP_LOCK_TIME_MS) {
+      await prisma.otpAttempts.update({
+        where: { userId: user.id },
+        data: { attempts: 0, lastTry: undefined }
+      });
+      }
+   });
 
     // Reset attempts if lockout period has expired
     if (otpAttempts.attempts >= MAX_OTP_ATTEMPTS && timeSinceLastTry >= OTP_LOCK_TIME_MS) {
       await prisma.otpAttempts.update({
         where: { userId: user.id },
-        data: { attempts: 0, lastTry: null }
+        data: { attempts: 0, lastTry: undefined }
       });
     }
   }
