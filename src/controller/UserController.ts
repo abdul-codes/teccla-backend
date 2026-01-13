@@ -309,6 +309,7 @@ export const resetUserLockout = asyncMiddleware(
     res.status(200).json({
       message: `User lockout reset for ${user.email}`,
     });
-  }
-);
+  },
+  );
+
 
