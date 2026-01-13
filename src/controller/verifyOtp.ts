@@ -23,10 +23,11 @@ export const verifyOtp = asyncMiddleware(async (req: Request, res: Response) => 
   }
 
   // Check if user is locked out from OTP attempts
-      const otpAttempts = await prisma.otpAttempts.findUnique({
-        where: { userId: user.id }
-      });
+    const otpAttempts = await prisma.otpAttempts.findUnique({
+      where: { userId: user.id }
+    });
 
+    if (otpAttempts) {
       // Check if user is locked out from OTP attempts
       const timeSinceLastTry = Date.now() - otpAttempts.lastTry.getTime();
 
@@ -39,21 +40,12 @@ export const verifyOtp = asyncMiddleware(async (req: Request, res: Response) => 
 
       // Reset attempts if lockout period has expired
       if (otpAttempts.attempts >= MAX_OTP_ATTEMPTS && timeSinceLastTry >= OTP_LOCK_TIME_MS) {
-      await prisma.otpAttempts.update({
-        where: { userId: user.id },
-        data: { attempts: 0, lastTry: undefined }
-      });
+        await prisma.otpAttempts.update({
+          where: { userId: user.id },
+          data: { attempts: 0, lastTry: undefined }
+        });
       }
-   });
-
-    // Reset attempts if lockout period has expired
-    if (otpAttempts.attempts >= MAX_OTP_ATTEMPTS && timeSinceLastTry >= OTP_LOCK_TIME_MS) {
-      await prisma.otpAttempts.update({
-        where: { userId: user.id },
-        data: { attempts: 0, lastTry: undefined }
-      });
     }
-  }
 
   // Find valid OTP
   const otpVerificationToken = await prisma.otpVerification.findFirst({
