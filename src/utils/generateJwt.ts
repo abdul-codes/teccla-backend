@@ -26,10 +26,3 @@ export const generateRefreshToken = (userId: string) => {
     expiresIn: '30d'
   });
 };
-
-// Generate Refresh Token (30 days expiry)
-export const generateRefreshToken = (userId: string) => {
-  return jwt.sign({ id: userId }, REFRESH_TOKEN, {
-    expiresIn: '30d'
-  });
-};
