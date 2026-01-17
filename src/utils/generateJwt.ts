@@ -1,5 +1,5 @@
 import jwt from 'jsonwebtoken';
-
+import crypto from 'crypto';
 
 
 // JWT Configuration
@@ -14,6 +14,16 @@ if (!ACCESS_TOKEN || !REFRESH_TOKEN) {
 export const generateAccessToken = (userId: string, role: string) => {
   return jwt.sign({ id: userId, role }, ACCESS_TOKEN, {
     expiresIn: '1h'
+  });
+};
+
+// Generate Refresh Token (30 days expiry)
+export const generateRefreshToken = (userId: string) => {
+  return jwt.sign({ 
+    id: userId, 
+    jti: crypto.randomUUID()
+  }, REFRESH_TOKEN, {
+    expiresIn: '30d'
   });
 };
 
