@@ -86,6 +86,9 @@ export const getFilteredProjects = asyncMiddleware(
               email: true,
             },
           },
+          conversation: {
+            select: { id: true }
+          }
         },
         orderBy: {
           [sortBy]: sortOrder,
@@ -200,6 +203,31 @@ export const createProject = asyncMiddleware(
             ? new Date(validatedData.finishDate)
             : null,
           createdById: req.user!.id,
+          ...(validatedData.includeConversation !== false && {
+            conversation: {
+              create: {
+                name: `${validatedData.title} - Group Chat`,
+                description: `Discussion group for ${validatedData.title}`,
+                isGroup: true,
+                createdBy: req.user!.id,
+                participants: {
+                  create: {
+                    userId: req.user!.id,
+                    role: "ADMIN",
+                  }
+                }
+              }
+            }
+          })
+        },
+        include: {
+          asset: true,
+          conversation: {
+            include: {
+              participants: true
+            }
+          },
+          createdBy: { select: { id: true, firstName: true, lastName: true } },
         },
       });
 
@@ -252,7 +280,8 @@ export const createProject = asyncMiddleware(
         where: { id: project.id },
         include: {
           asset: true,
-          createdBy: { select: { id: true, firstName: true } },
+          conversation: true,
+          createdBy: { select: { id: true, firstName: true, lastName: true } },
         },
       });
 
@@ -290,6 +319,7 @@ export const getProjectById = asyncMiddleware(
       where: { id },
       include: {
         asset: true,
+        conversation: true,
         createdBy: {
           select: {
             id: true,
