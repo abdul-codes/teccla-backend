@@ -16,6 +16,7 @@ export const createProjectSchema = z.object({
   status: z.enum(PROJECT_STATUSES).default("PLANNING"),
   startDate: z.string().datetime().optional(),
   finishDate: z.string().datetime().optional(),
+  includeConversation: z.boolean().default(true),
 });
 
 export type CreateProjectInput = z.infer<typeof createProjectSchema>;
