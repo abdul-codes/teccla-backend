@@ -11,6 +11,7 @@ import authRoutes from "./routes/AuthRoutes";
 import userRoutes from "./routes/UserRoutes";
 import userProfileRoutes from "./routes/UserProfileRoutes";
 import projectRoutes from "./routes/ProjectRoutes";
+import projectMemberRoutes from "./routes/ProjectMemberRoutes";
 import chatRoutes from "./routes/chat/ChatRoutes";
 import paymentRoutes from "./routes/PaymentRoutes";
 import webhookRoutes from "./routes/WebhookRoutes";
@@ -78,6 +79,7 @@ app.use("/api/auth", authRoutes);
 app.use("/api/users/profile", userProfileRoutes); // Must be BEFORE /api/users
 app.use("/api/users", userRoutes);
 app.use("/api/projects", projectRoutes);
+app.use("/api", projectMemberRoutes);
 app.use("/api/chat", chatRoutes);
 app.use("/api/payments", paymentRoutes);
 app.use("/api/webhooks", webhookRoutes);

@@ -69,30 +69,53 @@ model Asset {
 }
 
 model Project {
-  id          String        @id @unique @default(cuid())
-  title       String        @unique
-  description String
-  location    String
-  budget      Float
-  type        ProjectType   @default(COMMERCIAL)
-  status      ProjectStatus
-  startDate   DateTime?
-  finishDate  DateTime?
-  createdAt   DateTime      @default(now())
-  updatedAt   DateTime      @updatedAt
-  createdById String
-  asset       Asset[]
-  createdBy   User          @relation(fields: [createdById], references: [id])
+  id                    String            @id @unique @default(cuid())
+  title                 String            @unique
+  description           String
+  location              String
+  budget                Float
+  type                  ProjectType       @default(COMMERCIAL)
+  status                ProjectStatus
+  startDate             DateTime?
+  finishDate            DateTime?
+  createdAt             DateTime          @default(now())
+  updatedAt             DateTime          @updatedAt
+  createdById           String
+  completionPercentage  Float             @default(50)
+  downPaymentPercentage Float             @default(50)
+  isPublic              Boolean           @default(true)
+  maxParticipants       Int?
+  totalPrice            Float?
+  asset                 Asset[]
+  members               ProjectMember[]
+  conversationId        String?           @unique
+  conversation          Conversation?     @relation("ProjectConversation", fields: [conversationId], references: [id])
+  createdBy             User              @relation(fields: [createdById], references: [id])
 
   // Performance indexes for filtering and sorting
   @@index([status, createdAt(sort: Desc)]) // For status filtering + date sorting
-  @@index([type, createdAt(sort: Desc)]) // For type filtering + date sorting  
+  @@index([type, createdAt(sort: Desc)]) // For type filtering + date sorting
   @@index([budget]) // For budget range filtering
   @@index([location]) // For location filtering
   @@index([createdById]) // For creator filtering
-  @@index([title]) // For search functionality
   @@index([createdAt(sort: Desc)]) // Default sorting optimization
   @@index([startDate(sort: Desc)]) // For project date sorting
+}
+
+model ProjectMember {
+  id        String              @id @default(cuid())
+  projectId String
+  userId    String
+  role      ProjectMemberRole   @default(MEMBER)
+  status    ProjectMemberStatus @default(JOINED)
+  joinedAt  DateTime            @default(now())
+
+  project   Project             @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  user      User                @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([projectId, userId])
+  @@index([userId])
+  @@index([projectId])
 }
 
 model User {
@@ -125,6 +148,7 @@ model User {
   OtpAttempts              OtpAttempts?
   OtpVerification          OtpVerification[]
   projects                 Project[]
+  projectMembers           ProjectMember[]
   RefreshTokens            RefreshToken[]
   passwordResetTokens      PasswordResetToken[]
   subscription             Subscription?
@@ -142,6 +166,8 @@ model Conversation {
   createdBy    String
   createdAt    DateTime                  @default(now())
   updatedAt    DateTime                  @updatedAt
+  projectId    String?                   @unique
+  project      Project?                  @relation("ProjectConversation")
   creator      User                      @relation("ConversationCreator", fields: [createdBy], references: [id])
   participants ConversationParticipant[]
   messages     Message[]
@@ -149,6 +175,7 @@ model Conversation {
   @@index([createdBy])
   @@index([isGroup])
   @@index([createdAt])
+  @@index([projectId])
 }
 
 model ConversationParticipant {
@@ -247,6 +274,18 @@ model Payment {
 enum UserRole {
   ADMIN
   USER
+}
+
+enum ProjectMemberRole {
+  ADMIN
+  MEMBER
+}
+
+enum ProjectMemberStatus {
+  JOINED
+  PAID_DOWN
+  PAID_COMPLETION
+  PAID_FULL
 }
 
 enum ProjectStatus {
