@@ -4,6 +4,8 @@ import * as jwt from 'jsonwebtoken';
 import { prisma } from '../utils/db';
 import { sanitizeMessageContent } from '../utils/contentSanitizer';
 import { initializeEnhancedPresence, handleEnhancedConnection } from './handlers/connectionHandler';
+import { initializeDashboardHandlers } from './handlers/dashboardHandler';
+import { setDashboardIO } from '../utils/dashboardEmitter';
 import './types';
 import Logger from '../utils/logger';
 
@@ -31,6 +33,12 @@ export function initializeSocket(server: HTTPServer) {
 
   // Initialize enhanced presence manager
   initializeEnhancedPresence(io);
+  
+  // Initialize dashboard handlers
+  initializeDashboardHandlers(io);
+  
+  // Set dashboard IO instance for event emitting
+  setDashboardIO(io);
 
   // Basic rate limiting for socket events
   const messageCooldowns = new Map<string, number>();
