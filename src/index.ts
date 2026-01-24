@@ -15,6 +15,7 @@ import projectMemberRoutes from "./routes/ProjectMemberRoutes";
 import chatRoutes from "./routes/chat/ChatRoutes";
 import paymentRoutes from "./routes/PaymentRoutes";
 import webhookRoutes from "./routes/WebhookRoutes";
+import dashboardRoutes from "./routes/DashboardRoutes";
 import { initializeSocket } from "./socket/socketServer";
 import Logger from "./utils/logger";
 import { errorMiddleware } from "./middleware/errorMiddleware";
@@ -83,6 +84,7 @@ app.use("/api", projectMemberRoutes);
 app.use("/api/chat", chatRoutes);
 app.use("/api/payments", paymentRoutes);
 app.use("/api/webhooks", webhookRoutes);
+app.use("/api/dashboard", dashboardRoutes);
 
 // Fix for Paystack redirecting to backend instead of frontend
 app.get("/payment/verify", (req, res) => {
