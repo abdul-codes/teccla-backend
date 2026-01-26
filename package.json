@@ -48,6 +48,8 @@
     "qs": "^6.14.1",
     "socket.io": "^4.8.1",
     "supertest": "^7.1.4",
+    "swagger-jsdoc": "^6.2.8",
+    "swagger-ui-express": "^5.0.1",
     "winston": "^3.19.0",
     "winston-daily-rotate-file": "^5.0.0",
     "zod": "^3.24.2"
@@ -63,6 +65,8 @@
     "@types/node": "^22.10.1",
     "@types/nodemailer": "^6.4.17",
     "@types/supertest": "^6.0.3",
+    "@types/swagger-jsdoc": "^6.0.4",
+    "@types/swagger-ui-express": "^4.1.8",
     "jest": "^30.2.0",
     "nodemon": "^3.1.7",
     "prisma": "^7.1.0",
