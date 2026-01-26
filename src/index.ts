@@ -20,6 +20,7 @@ import { initializeSocket } from "./socket/socketServer";
 import Logger from "./utils/logger";
 import { errorMiddleware } from "./middleware/errorMiddleware";
 import { requestLogger } from "./middleware/requestLogger";
+import { setupSwagger } from "./utils/swagger";
 
 
 const app = express();
@@ -80,7 +81,8 @@ app.use("/api/auth", authRoutes);
 app.use("/api/users/profile", userProfileRoutes); // Must be BEFORE /api/users
 app.use("/api/users", userRoutes);
 app.use("/api/projects", projectRoutes);
-app.use("/api", projectMemberRoutes);
+app.use("/api/projects", projectMemberRoutes); // Mount members under projects
+app.use("/api/project-members", projectMemberRoutes); // Keep for /my-projects and management
 app.use("/api/chat", chatRoutes);
 app.use("/api/payments", paymentRoutes);
 app.use("/api/webhooks", webhookRoutes);
@@ -101,6 +103,9 @@ const PORT = process.env.PORT || 8000;
 
 // Initialize Socket.io
 initializeSocket(server);
+
+// Setup Swagger Documentation
+setupSwagger(app);
 
 // Global Error Handler
 app.use(errorMiddleware);
