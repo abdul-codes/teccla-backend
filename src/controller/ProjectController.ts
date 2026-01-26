@@ -8,7 +8,7 @@ import {
 } from "../validation/project";
 import { asyncMiddleware } from "../middleware/asyncMiddleware";
 import { getStorageProvider } from "../storage";
-import { AssetType, Project } from "../../prisma/generated/prisma/client";
+import { AssetType, Project, ParticipantRole } from "../../prisma/generated/prisma/client";
 import Logger from "../utils/logger";
 
 // interface AuthRequest extends Request {
@@ -35,41 +35,61 @@ export const getFilteredProjects = asyncMiddleware(
       location,
       sortBy,
       sortOrder,
-      createdBy
+      createdBy,
+      isPublic
     } = req.query as unknown as ProjectQueryInput;
 
     const skip = (page - 1) * limit;
 
     // 2. Build dynamic where clause for filtering
-    const where: any = {};
+    const andClauses: any[] = [];
 
     // Search filter (title + description)
     if (search) {
-      where.OR = [
-        { title: { contains: search, mode: 'insensitive' } },
-        { description: { contains: search, mode: 'insensitive' } }
-      ];
+      andClauses.push({
+        OR: [
+          { title: { contains: search, mode: 'insensitive' } },
+          { description: { contains: search, mode: 'insensitive' } }
+        ]
+      });
     }
 
     // Individual filters
-    if (status) where.status = status;
-    if (type) where.type = type;
-    if (location) where.location = { contains: location, mode: 'insensitive' };
-    if (createdBy) where.createdById = createdBy;
+    if (status) andClauses.push({ status: status });
+    if (type) andClauses.push({ type: type });
+    if (location) andClauses.push({ location: { contains: location, mode: 'insensitive' } });
+    if (createdBy) andClauses.push({ createdById: createdBy });
+
+    // Visibility filter logic:
+    // If not admin, only show public projects OR projects created by user
+    if (req.user?.role !== 'ADMIN') {
+      andClauses.push({
+        OR: [
+          { isPublic: true },
+          { createdById: req.user?.id }
+        ]
+      });
+    } else if (isPublic !== undefined) {
+      andClauses.push({ isPublic: isPublic });
+    }
 
     // Budget range filter
     if (budgetMin || budgetMax) {
-      where.budget = {};
-      if (budgetMin) where.budget.gte = budgetMin;
-      if (budgetMax) where.budget.lte = budgetMax;
+      const budgetClause: any = {};
+      if (budgetMin) budgetClause.gte = budgetMin;
+      if (budgetMax) budgetClause.lte = budgetMax;
+      andClauses.push({ budget: budgetClause });
     }
 
     // Date range filter
     if (dateFrom || dateTo) {
-      where.createdAt = {};
-      if (dateFrom) where.createdAt.gte = new Date(dateFrom);
-      if (dateTo) where.createdAt.lte = new Date(dateTo);
+      const dateClause: any = {};
+      if (dateFrom) dateClause.gte = new Date(dateFrom);
+      if (dateTo) dateClause.lte = new Date(dateTo);
+      andClauses.push({ createdAt: dateClause });
     }
+
+    const where = andClauses.length > 0 ? { AND: andClauses } : {};
 
     // 3. Execute optimized Prisma query
     const [projects, total] = await Promise.all([
@@ -88,6 +108,10 @@ export const getFilteredProjects = asyncMiddleware(
           },
           conversation: {
             select: { id: true }
+          },
+          asset: {
+            take: 1, // Only get one thumbnail for listing efficiency
+            where: { assetType: AssetType.IMAGE }
           }
         },
         orderBy: {
@@ -171,6 +195,71 @@ export const getFilteredProjects = asyncMiddleware(
   },
 );
 
+export const getPublicProjects = asyncMiddleware(
+  async (req: Request, res: Response) => {
+    const {
+      page = 1,
+      limit = 10,
+      type,
+      location,
+      search
+    } = req.query as any;
+
+    const skip = (Number(page) - 1) * Number(limit);
+
+    const where: any = {
+      isPublic: true
+    };
+
+    if (type) where.type = type;
+    if (location) where.location = { contains: location, mode: 'insensitive' };
+    if (search) {
+      where.OR = [
+        { title: { contains: search, mode: 'insensitive' } },
+        { description: { contains: search, mode: 'insensitive' } }
+      ];
+    }
+
+    const [projects, total] = await Promise.all([
+      prisma.project.findMany({
+        where,
+        skip,
+        take: Number(limit),
+        include: {
+          createdBy: {
+            select: {
+              firstName: true,
+              lastName: true,
+            },
+          },
+          asset: {
+            where: { assetType: AssetType.IMAGE },
+            take: 1
+          }
+        },
+        orderBy: { createdAt: 'desc' }
+      }),
+      prisma.project.count({ where })
+    ]);
+
+    const totalPages = Math.ceil(total / Number(limit));
+
+    return res.status(200).json({
+      success: true,
+      data: {
+        projects,
+        pagination: {
+          currentPage: Number(page),
+          totalPages,
+          totalItems: total,
+          hasNextPage: Number(page) < totalPages,
+          hasPrevPage: Number(page) > 1
+        }
+      }
+    });
+  }
+);
+
 
 
 
@@ -193,17 +282,19 @@ export const createProject = asyncMiddleware(
         });
       }
 
+      const { includeConversation, ...prismaData } = validatedData;
+
       project = await prisma.project.create({
         data: {
-          ...validatedData,
+          ...prismaData,
           startDate: validatedData.startDate
             ? new Date(validatedData.startDate)
             : null,
           finishDate: validatedData.finishDate
             ? new Date(validatedData.finishDate)
             : null,
-          createdById: req.user!.id,
-          ...(validatedData.includeConversation !== false && {
+          createdBy: { connect: { id: req.user!.id } },
+          ...(includeConversation !== false && {
             conversation: {
               create: {
                 name: `${validatedData.title} - Group Chat`,
@@ -213,7 +304,7 @@ export const createProject = asyncMiddleware(
                 participants: {
                   create: {
                     userId: req.user!.id,
-                    role: "ADMIN",
+                    role: ParticipantRole.ADMIN,
                   }
                 }
               }

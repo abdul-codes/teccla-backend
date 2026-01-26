@@ -32,7 +32,7 @@ export const projectQuerySchema = z.object({
   // Pagination
   page: z.coerce.number().min(1).default(1),
   limit: z.coerce.number().min(1).max(100).default(10),
-  
+
   // Search & Filters
   search: z.string().optional(),                    // Search in title + description
   status: z.enum(PROJECT_STATUSES).optional(),       // Status filter
@@ -42,13 +42,16 @@ export const projectQuerySchema = z.object({
   dateFrom: z.string().datetime().optional(),        // Creation date from
   dateTo: z.string().datetime().optional(),          // Creation date to
   location: z.string().optional(),                   // Location filter
-  
+
   // Sorting
   sortBy: z.enum(SORT_FIELDS).default("createdAt"),
   sortOrder: z.enum(SORT_ORDERS).default("desc"),
-  
+
   // Creator filter
-  createdBy: z.string().optional(),                  // Filter by creator ID
+  createdBy: z.string().optional(),
+
+  // Visibility
+  isPublic: z.preprocess((val) => val === 'true' || val === true, z.boolean()).optional(),
 });
 
 export type ProjectQueryInput = z.infer<typeof projectQuerySchema>;
