@@ -195,3 +195,50 @@ export const updateMemberStatus = asyncMiddleware(async (req: Request, res: Resp
     data: { member: updatedMember }
   });
 });
+
+export const inviteUserToProject = asyncMiddleware(async (req: Request, res: Response) => {
+  const { projectId } = req.params;
+  const { userId, role = 'MEMBER' } = req.body;
+  const currentUserId = req.user!.id;
+
+  const project = await prisma.project.findUnique({
+    where: { id: projectId }
+  });
+
+  if (!project) {
+    return res.status(404).json({ success: false, message: "Project not found" });
+  }
+
+  // Only owner or admin can invite
+  if (project.createdById !== currentUserId && req.user!.role !== 'ADMIN') {
+    return res.status(403).json({ success: false, message: "Not authorized to invite users to this project" });
+  }
+
+  const existingMember = await prisma.projectMember.findUnique({
+    where: { projectId_userId: { projectId, userId } }
+  });
+
+  if (existingMember) {
+    return res.status(400).json({ success: false, message: "User is already a member of this project" });
+  }
+
+  const member = await prisma.projectMember.create({
+    data: {
+      projectId,
+      userId,
+      role,
+      status: 'JOINED', // For now, auto-join on invite. Later can add INVITED status
+    },
+    include: {
+      user: {
+        select: { id: true, firstName: true, lastName: true, email: true, profilePicture: true }
+      }
+    }
+  });
+
+  return res.status(201).json({
+    success: true,
+    message: "User invited and joined project successfully",
+    data: { projectMember: member }
+  });
+});
