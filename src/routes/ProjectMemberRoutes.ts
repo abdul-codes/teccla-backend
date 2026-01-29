@@ -1,50 +1,25 @@
 import { Router } from "express";
 import { authenticateUser } from "../middleware/authMiddleware";
 import {
-  joinProject,
+  requestJoinProject,
+  getPendingRequests,
+  approveMember,
+  rejectMember,
   leaveProject,
   getProjectMembers,
   getMyProjects,
   removeUserFromProject,
   updateMemberStatus,
-  inviteUserToProject
+  inviteUserToProject,
 } from "../controller/ProjectMemberController";
-
-/**
- * @swagger
- * tags:
- *   name: Project Members
- *   description: Manage project membership and invites
- */
 
 const router = Router();
 
-// Project membership routes
 /**
  * @swagger
- * /projects/{id}/join:
+ * /projects/{id}/request-join:
  *   post:
- *     summary: Join a project
- *     tags: [Project Members]
- *     security:
- *       - bearerAuth: []
- *     parameters:
- *       - in: path
- *         name: id
- *         required: true
- *         schema:
- *           type: string
- *     responses:
- *       200:
- *         description: Joined project successfully
- */
-router.post('/:id/join', authenticateUser, joinProject);
-
-/**
- * @swagger
- * /projects/{id}/invite:
- *   post:
- *     summary: Invite a user to a project
+ *     summary: Request to join a project (requires payment)
  *     tags: [Project Members]
  *     security:
  *       - bearerAuth: []
@@ -61,18 +36,108 @@ router.post('/:id/join', authenticateUser, joinProject);
  *           schema:
  *             type: object
  *             required:
- *               - userId
+ *               - reference
+ *               - amount
  *             properties:
- *               userId:
+ *               reference:
  *                 type: string
- *               role:
- *                 type: string
- *                 enum: [ADMIN, MEMBER]
+ *               amount:
+ *                 type: number
  *     responses:
  *       201:
- *         description: User invited successfully
+ *         description: Join request submitted
  */
-router.post('/:id/invite', authenticateUser, inviteUserToProject);
+router.post('/:projectId/request-join', authenticateUser, requestJoinProject);
+
+/**
+ * @swagger
+ * /projects/{id}/pending:
+ *   get:
+ *     summary: Get pending join requests (owner/admin only)
+ *     tags: [Project Members]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *     responses:
+ *       200:
+ *         description: List of pending requests
+ */
+router.get('/:projectId/pending', authenticateUser, getPendingRequests);
+
+/**
+ * @swagger
+ * /projects/{id}/approve/{userId}:
+ *   patch:
+ *     summary: Approve a join request (adds to chat automatically)
+ *     tags: [Project Members]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *       - in: path
+ *         name: userId
+ *         required: true
+ *         schema:
+ *           type: string
+ *     responses:
+ *       200:
+ *         description: Member approved
+ */
+router.patch('/:projectId/approve/:userId', authenticateUser, approveMember);
+
+/**
+ * @swagger
+ * /projects/{id}/reject/{userId}:
+ *   patch:
+ *     summary: Reject a join request
+ *     tags: [Project Members]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *       - in: path
+ *         name: userId
+ *         required: true
+ *         schema:
+ *           type: string
+ *     responses:
+ *       200:
+ *         description: Request rejected
+ */
+router.patch('/:projectId/reject/:userId', authenticateUser, rejectMember);
+
+/**
+ * @swagger
+ * /projects/{id}/invite:
+ *   post:
+ *     summary: Invite a user to a project (auto-approve + auto-add chat)
+ *     tags: [Project Members]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *     responses:
+ *       201:
+ *         description: User invited
+ */
+router.post('/:projectId/invite', authenticateUser, inviteUserToProject);
 
 /**
  * @swagger
@@ -82,17 +147,11 @@ router.post('/:id/invite', authenticateUser, inviteUserToProject);
  *     tags: [Project Members]
  *     security:
  *       - bearerAuth: []
- *     parameters:
- *       - in: path
- *         name: id
- *         required: true
- *         schema:
- *           type: string
  *     responses:
  *       200:
- *         description: Left project successfully
+ *         description: Left project
  */
-router.post('/:id/leave', authenticateUser, leaveProject);
+router.post('/:projectId/leave', authenticateUser, leaveProject);
 
 /**
  * @swagger
@@ -102,19 +161,12 @@ router.post('/:id/leave', authenticateUser, leaveProject);
  *     tags: [Project Members]
  *     security:
  *       - bearerAuth: []
- *     parameters:
- *       - in: path
- *         name: id
- *         required: true
- *         schema:
- *           type: string
  *     responses:
  *       200:
  *         description: List of project members
  */
-router.get('/:id/members', authenticateUser, getProjectMembers);
+router.get('/:projectId/members', authenticateUser, getProjectMembers);
 
-// User's projects
 /**
  * @swagger
  * /project-members/my-projects:
@@ -129,7 +181,6 @@ router.get('/:id/members', authenticateUser, getProjectMembers);
  */
 router.get('/my-projects', authenticateUser, getMyProjects);
 
-// Admin/Owner management routes
 /**
  * @swagger
  * /project-members/{projectId}/members/{userId}:
@@ -138,20 +189,9 @@ router.get('/my-projects', authenticateUser, getMyProjects);
  *     tags: [Project Members]
  *     security:
  *       - bearerAuth: []
- *     parameters:
- *       - in: path
- *         name: projectId
- *         required: true
- *         schema:
- *           type: string
- *       - in: path
- *         name: userId
- *         required: true
- *         schema:
- *           type: string
  *     responses:
  *       200:
- *         description: Member removed successfully
+ *         description: Member removed
  */
 router.delete('/:projectId/members/:userId', authenticateUser, removeUserFromProject);
 
@@ -159,24 +199,13 @@ router.delete('/:projectId/members/:userId', authenticateUser, removeUserFromPro
  * @swagger
  * /project-members/{projectId}/members/{userId}:
  *   patch:
- *     summary: Update a member's status in a project
+ *     summary: Update a member's status
  *     tags: [Project Members]
  *     security:
  *       - bearerAuth: []
- *     parameters:
- *       - in: path
- *         name: projectId
- *         required: true
- *         schema:
- *           type: string
- *       - in: path
- *         name: userId
- *         required: true
- *         schema:
- *           type: string
  *     responses:
  *       200:
- *         description: Member status updated
+ *         description: Status updated
  */
 router.patch('/:projectId/members/:userId', authenticateUser, updateMemberStatus);
 
