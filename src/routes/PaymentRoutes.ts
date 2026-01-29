@@ -1,8 +1,8 @@
 import { Router } from 'express';
 import {
-    initializePayment,
-    verifyPayment,
-    getPaymentHistory,
+    initializeProjectPayment,
+    getProjectPaymentStatus,
+    getProjectPaymentHistory,
 } from '../controller/PaymentController';
 import { authenticateUser } from '../middleware/authMiddleware';
 
@@ -12,55 +12,90 @@ const router = Router();
  * @swagger
  * tags:
  *   name: Payments
- *   description: Payment processing and history
+ *   description: Project payment processing
  */
 
 /**
  * @swagger
- * /payments/initialize:
+ * /payments/projects/{projectId}/initialize:
  *   post:
- *     summary: Initialize a new payment
- *     tags: [Payments]
- *     security:
- *       - bearerAuth: []
- *     responses:
- *       200:
- *         description: Payment initialized successfully
- */
-router.post('/initialize', authenticateUser, initializePayment);
-
-/**
- * @swagger
- * /payments/verify/{reference}:
- *   get:
- *     summary: Verify a payment by reference
+ *     summary: Initialize project down payment
  *     tags: [Payments]
  *     security:
  *       - bearerAuth: []
  *     parameters:
  *       - in: path
- *         name: reference
+ *         name: projectId
+ *         required: true
+ *         schema:
+ *           type: string
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - amount
+ *             properties:
+ *               amount:
+ *                 type: number
+ *     responses:
+ *       200:
+ *         description: Payment initialized
+ */
+router.post(
+    '/projects/:projectId/initialize',
+    authenticateUser,
+    initializeProjectPayment
+);
+
+/**
+ * @swagger
+ * /payments/projects/{projectId}/status:
+ *   get:
+ *     summary: Get user's payment status for a project
+ *     tags: [Payments]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: projectId
  *         required: true
  *         schema:
  *           type: string
  *     responses:
  *       200:
- *         description: Payment verified successfully
+ *         description: Payment status retrieved
  */
-router.get('/verify/:reference', authenticateUser, verifyPayment);
+router.get(
+    '/projects/:projectId/status',
+    authenticateUser,
+    getProjectPaymentStatus
+);
 
 /**
  * @swagger
- * /payments/history:
+ * /payments/projects/{projectId}/history:
  *   get:
- *     summary: Get user's payment history
+ *     summary: Get payment history for a project
  *     tags: [Payments]
  *     security:
  *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: projectId
+ *         required: true
+ *         schema:
+ *           type: string
  *     responses:
  *       200:
- *         description: Payment history retrieved successfully
+ *         description: Payment history retrieved
  */
-router.get('/history', authenticateUser, getPaymentHistory);
+router.get(
+    '/projects/:projectId/history',
+    authenticateUser,
+    getProjectPaymentHistory
+);
 
 export default router;
