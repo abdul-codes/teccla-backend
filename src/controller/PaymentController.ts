@@ -6,15 +6,13 @@ import {
     generateReference,
 } from '../utils/paystack';
 import { asyncMiddleware } from '../middleware/asyncMiddleware';
-import {
-    FIXED_PAYMENT_AMOUNT_KOBO,
-    FIXED_PAYMENT_DESCRIPTION,
-} from '../config/paymentConfig';
 
-// Initialize payment with fixed amount
-export const initializePayment = asyncMiddleware(
+// Initialize project-based payment
+export const initializeProjectPayment = asyncMiddleware(
     async (req: Request, res: Response) => {
         const userId = req.user!.id;
+        const { projectId } = req.params;
+        const { amount } = req.body as { amount: number };
 
         const user = await prisma.user.findUnique({
             where: { id: userId },
@@ -28,22 +26,57 @@ export const initializePayment = asyncMiddleware(
             });
         }
 
+        const project = await prisma.project.findUnique({
+            where: { id: projectId },
+            select: {
+                id: true,
+                title: true,
+                totalPrice: true,
+                downPaymentPercentage: true,
+                createdBy: { select: { email: true } },
+            },
+        });
+
+        if (!project) {
+            return res.status(404).json({
+                success: false,
+                message: 'Project not found',
+            });
+        }
+
+        if (!project.totalPrice) {
+            return res.status(400).json({
+                success: false,
+                message: 'Project pricing not set',
+            });
+        }
+
+        const expectedAmount = Math.round(project.totalPrice * project.downPaymentPercentage * 100);
+        if (amount < expectedAmount) {
+            return res.status(400).json({
+                success: false,
+                message: `Minimum payment is ₦${(expectedAmount / 100).toLocaleString()}`,
+            });
+        }
+
         const reference = generateReference();
-        const callbackUrl = `${(process.env.FRONTEND_URL || 'http://localhost:5173').replace(/\/$/, '')}/payment/verify`;
+        const frontendUrl = (process.env.FRONTEND_URL || 'http://localhost:5173').replace(/\/$/, '');
+        const callbackUrl = `${frontendUrl}/projects/${projectId}/join/verify?reference=${reference}`;
 
         await prisma.payment.create({
             data: {
                 userId,
+                projectId,
                 paystackReference: reference,
-                amount: FIXED_PAYMENT_AMOUNT_KOBO,
-                description: FIXED_PAYMENT_DESCRIPTION,
+                amount,
+                description: `Down payment for ${project.title}`,
                 status: 'PENDING',
             },
         });
 
         const paystackData = await initializeTransaction(
             user.email,
-            FIXED_PAYMENT_AMOUNT_KOBO,
+            amount,
             reference,
             callbackUrl
         );
@@ -54,7 +87,68 @@ export const initializePayment = asyncMiddleware(
             data: {
                 authorization_url: paystackData.authorization_url,
                 reference: paystackData.reference,
+                amount,
+                projectId,
+                projectTitle: project.title,
             },
+        });
+    }
+);
+
+// Get project payment status
+export const getProjectPaymentStatus = asyncMiddleware(
+    async (req: Request, res: Response) => {
+        const userId = req.user!.id;
+        const { projectId } = req.params;
+
+        const membership = await prisma.projectMember.findUnique({
+            where: { projectId_userId: { projectId, userId } },
+            select: {
+                status: true,
+                paymentReference: true,
+                joinedAt: true,
+            },
+        });
+
+        if (!membership) {
+            return res.status(404).json({
+                success: false,
+                message: 'No request found',
+            });
+        }
+
+        const payments = await prisma.payment.findMany({
+            where: { userId, projectId },
+            orderBy: { createdAt: 'desc' },
+            take: 1,
+        });
+
+        return res.status(200).json({
+            success: true,
+            data: {
+                status: membership.status,
+                paymentReference: membership.paymentReference,
+                lastPayment: payments[0] || null,
+            },
+        });
+    }
+);
+
+// Get project payment history
+export const getProjectPaymentHistory = asyncMiddleware(
+    async (req: Request, res: Response) => {
+        const userId = req.user!.id;
+        const { projectId } = req.params;
+
+        const payments = await prisma.payment.findMany({
+            where: { userId, projectId },
+            orderBy: { createdAt: 'desc' },
+        });
+
+        return res.status(200).json({
+            success: true,
+            message: 'Project payment history retrieved',
+            data: { payments },
         });
     }
 );
