@@ -55,3 +55,19 @@ export const projectQuerySchema = z.object({
 });
 
 export type ProjectQueryInput = z.infer<typeof projectQuerySchema>;
+
+// Join request validation schema
+export const requestJoinSchema = z.object({
+  projectId: z.string(),
+  reference: z.string(),
+  amount: z.coerce.number().positive(),
+});
+
+export type RequestJoinInput = z.infer<typeof requestJoinSchema>;
+
+// Approve/Reject member schema
+export const memberActionSchema = z.object({
+  reason: z.string().optional(),
+});
+
+export type MemberActionInput = z.infer<typeof memberActionSchema>;
