@@ -36,6 +36,29 @@ export const handlePaystackWebhook = asyncMiddleware(async (req: Request, res: R
         });
 
         Logger.info(`Payment ${reference} updated to ${status} via webhook`);
+
+        // If payment successful, update membership to PAYMENT_RECEIVED
+        if (status === 'success') {
+            const payment = await prisma.payment.findFirst({
+                where: { paystackReference: reference },
+            });
+
+            if (payment?.projectId) {
+                const updated = await prisma.projectMember.updateMany({
+                    where: {
+                        projectId: payment.projectId,
+                        userId: payment.userId,
+                        status: 'PENDING_APPROVAL',
+                        paymentReference: reference,
+                    },
+                    data: { status: 'PAYMENT_RECEIVED' },
+                });
+
+                if (updated.count > 0) {
+                    Logger.info(`Membership for project ${payment.projectId}, user ${payment.userId} updated to PAYMENT_RECEIVED`);
+                }
+            }
+        }
     }
 
     return res.sendStatus(200);
